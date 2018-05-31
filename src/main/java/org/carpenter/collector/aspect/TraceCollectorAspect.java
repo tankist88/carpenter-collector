@@ -78,7 +78,7 @@ public class TraceCollectorAspect {
             final StackTraceElement[] stackTrace = stackTraceTmp != null ? stackTraceTmp : (new Throwable()).getStackTrace();
             final TraceAnalyzeDto traceAnalyzeTransport = traceAnalyzeDtoTmp;
 
-            Runnable beforeProcessor = new Runnable() {
+            Runnable callProcessor = new Runnable() {
                 @Override
                 public void run() {
                     TraceAnalyzeDto traceAnalyzeDto = getTraceAnalyzeDto(traceAnalyzeTransport, joinPoint, threadName, stackTrace);
@@ -103,8 +103,6 @@ public class TraceCollectorAspect {
                     targetMethod.setServiceFields(toServiceProperties(getAllFieldsOfClass(classHierarchy)));
 
                     // технические поля
-                    int argsHashCode = Objects.hash(args);
-                    targetMethod.setValueArgumentsHashCode(argsHashCode);
                     targetMethod.setKey(createMethodKey(joinPoint, threadName));
                     targetMethod.setTraceAnalyzeData(traceAnalyzeDto);
 
@@ -116,10 +114,10 @@ public class TraceCollectorAspect {
                     returnValue.setNearestInstantAbleClass(returnValue.isAnonymousClass() ? getFirstPublicType(retType).getName() : retType.getName());
                     targetMethod.setReturnArg(returnValue);
 
-                    saveObjectDump(targetMethod, joinPoint, threadName, joinClass, argsHashCode, traceAnalyzeDto.getUpLevelElementKey());
+                    saveObjectDump(targetMethod, joinPoint, threadName, joinClass, Objects.hash(args), traceAnalyzeDto.getUpLevelElementKey());
                 }
             };
-            EXECUTOR_SERVICE.submit(beforeProcessor);
+            EXECUTOR_SERVICE.submit(callProcessor);
         }
     }
 }

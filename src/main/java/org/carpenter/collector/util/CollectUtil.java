@@ -102,13 +102,9 @@ public class CollectUtil {
 
     public static SourceGenerator getSgInstance() {
         GenerationProperties props = GenerationPropertiesFactory.loadProps();
-        Set<String> excludedPackages = new HashSet<>(
-                Arrays.asList(props.getExcludedPackagesForDp())
-        );
+        Set<String> excludedPackages = new HashSet<>(Arrays.asList(props.getExcludedPackagesForDp()));
         String utilClass = props.getDataProviderClassPattern() + COMMON_UTIL_POSTFIX;
-        SourceGenerator sg = new SourceGenerator(TAB, excludedPackages, utilClass);
-        sg.setExceptionWhenMaxODepth(false);
-        return sg;
+        return new SourceGenerator(TAB, excludedPackages, utilClass, false);
     }
 
     public static boolean allowedPackageForGeneration(String className) {
