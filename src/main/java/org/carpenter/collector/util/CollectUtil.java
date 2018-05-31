@@ -21,16 +21,10 @@ import java.util.*;
 
 import static org.carpenter.core.property.AbstractGenerationProperties.*;
 import static org.carpenter.core.util.TypeHelper.getMethodArgGenericTypeStr;
-import static org.object2source.util.GenerationUtil.getInterfacesHierarchyStr;
-import static org.object2source.util.GenerationUtil.getPackage;
+import static org.object2source.util.GenerationUtil.*;
 
 public class CollectUtil {
     private static final Logger logger = LoggerFactory.getLogger(CollectUtil.class);
-
-    public enum DumpType {
-        IN,
-        OUT
-    }
 
     private static final String[] DENIED_METHODS = {"hashCode","equals","compare"};
     private static final String[] DENIED_METHOD_SYMBOLS = {"$"};
@@ -38,6 +32,9 @@ public class CollectUtil {
     public static TraceAnalyzeDto createTraceAnalyzeData(StackTraceElement[] stackTrace, JoinPoint joinPoint, String threadName) throws CallerNotFoundException {
         TraceAnalyzeDto result = new TraceAnalyzeDto();
         StackTraceElement upLevelElement = null;
+        boolean anonymousCall = false;
+        String anonymousCallerClass = null;
+        StackTraceElement tmpAnonymousUpLevelElement = null;
         int level = 1;
         for (int i = 1; i < stackTrace.length; i++) {
             if (    stackTrace[i].getClassName().equals(TraceCollectorAspect.class.getName()) ||
@@ -46,17 +43,32 @@ public class CollectUtil {
             {
                 continue;
             }
-            if (level == 0 && !deniedClassAndMethod(stackTrace[i]) && !deniedPackage(stackTrace[i])) {
+            if (!anonymousCall && level == 0 && !deniedClassAndMethod(stackTrace[i]) && !deniedPackage(stackTrace[i]) && !sameMethod(joinPoint, stackTrace[i])) {
+                upLevelElement = stackTrace[i];
+                break;
+            }
+            if (anonymousCall && level == 0 && stackTrace[i].getClassName().equals(anonymousCallerClass) && !sameMethod(joinPoint, stackTrace[i])) {
                 upLevelElement = stackTrace[i];
                 break;
             }
             if (level > 0 && sameMethod(joinPoint, stackTrace[i])) {
                 level--;
             }
+            if(!anonymousCall) {
+                anonymousCall = getLastClassShort(stackTrace[i].getClassName()).matches("\\d+");
+                if (anonymousCall && anonymousCallerClass == null) {
+                    anonymousCallerClass = getOwnerParentClass(stackTrace[i].getClassName());
+                }
+            } else if (!getLastClassShort(stackTrace[i].getClassName()).matches("\\d+")) {
+                tmpAnonymousUpLevelElement = stackTrace[i];
+            }
         }
         if(upLevelElement != null) {
             result.setUpLevelElementKey(CollectUtil.getMethodKey(upLevelElement, threadName));
             result.setUpLevelElementClassName(upLevelElement.getClassName());
+        } else if (tmpAnonymousUpLevelElement != null) {
+            result.setUpLevelElementKey(CollectUtil.getMethodKey(tmpAnonymousUpLevelElement, threadName));
+            result.setUpLevelElementClassName(tmpAnonymousUpLevelElement.getClassName());
         } else {
             throw new CallerNotFoundException("Cant' find caller for " + createMethodKey(joinPoint, threadName));
         }
@@ -66,7 +78,7 @@ public class CollectUtil {
     private static boolean sameMethod(JoinPoint joinPoint, StackTraceElement st) {
         String className = joinPoint.getSourceLocation().getWithinType().getName();
         String methodName = joinPoint.getSignature().getName();
-        return className.equals(st.getClassName()) && methodName.equals(st.getMethodName());
+        return className.equals(st.getClassName()) && methodName.equals(clearAspectMethod(st.getMethodName()));
     }
 
     public static List<GeneratedArgument> createGeneratedArgumentList(Class[] types, Object[] args, String methodName, List<Class> classHierarchy, SourceGenerator sg) {
@@ -81,6 +93,8 @@ public class CollectUtil {
                 genArg.setGenericString(null);
             }
             genArg.setInterfacesHierarchy(getInterfacesHierarchyStr(type));
+            genArg.setAnonymousClass(getLastClassShort(type.getName()).matches("\\d+"));
+            genArg.setNearestInstantAbleClass(genArg.isAnonymousClass() ? getFirstPublicType(type).getName() : type.getName());
             argList.add(genArg);
         }
         return argList;
@@ -92,7 +106,9 @@ public class CollectUtil {
                 Arrays.asList(props.getExcludedPackagesForDp())
         );
         String utilClass = props.getDataProviderClassPattern() + COMMON_UTIL_POSTFIX;
-        return new SourceGenerator(TAB, excludedPackages, utilClass);
+        SourceGenerator sg = new SourceGenerator(TAB, excludedPackages, utilClass);
+        sg.setExceptionWhenMaxODepth(false);
+        return sg;
     }
 
     public static boolean allowedPackageForGeneration(String className) {
@@ -126,7 +142,7 @@ public class CollectUtil {
     private static boolean deniedClassAndMethod(StackTraceElement st) {
         if(st == null) return true;
         for (String m : DENIED_METHOD_SYMBOLS) {
-            if(st.getMethodName().contains(m) || st.getClassName().contains(m)) return true;
+            if(clearAspectMethod(st.getMethodName()).contains(m) || st.getClassName().contains(m)) return true;
         }
         return false;
     }
@@ -144,7 +160,7 @@ public class CollectUtil {
 
     private static String getMethodKey(StackTraceElement st, String threadName) {
         String className = st.getClassName();
-        String method = st.getMethodName();
+        String method = clearAspectMethod(st.getMethodName());
         return getMethodKey(className, method, threadName);
     }
 
@@ -154,13 +170,13 @@ public class CollectUtil {
         return getMethodKey(joinClass, joinMethod, threadName);
     }
 
-    public static void saveObjectDump(DumpType dumpType, Serializable object, JoinPoint joinPoint, String threadName, String className, int argsHashCode, String upLevelKey) {
+    public static void saveObjectDump(Serializable object, JoinPoint joinPoint, String threadName, String className, int argsHashCode, String upLevelKey) {
         try {
             String key = createMethodKey(joinPoint, threadName)+ "_" + argsHashCode + "_" + upLevelKey;
             String keyHash = DigestUtils.md5Hex(key);
             String packageFileStruct = GenerationPropertiesFactory.loadProps().getObjectDumpDir() + "/" + getPackage(className).replaceAll("\\.", "/");
             FileUtils.forceMkdir(new File(packageFileStruct));
-            File file = new File(packageFileStruct, keyHash + "_" + dumpType + "." + OBJ_FILE_EXTENSION);
+            File file = new File(packageFileStruct, keyHash + "." + OBJ_FILE_EXTENSION);
             DataOutputStream dos = new DataOutputStream(new FileOutputStream(file));
             byte[] bytes = SerializationUtils.serialize(object);
             dos.writeInt(bytes.length);
@@ -187,6 +203,14 @@ public class CollectUtil {
 
     public static Class getJoinClass(JoinPoint joinPoint) {
         return joinPoint.getTarget() != null ? joinPoint.getTarget().getClass() : joinPoint.getSignature().getDeclaringType();
+    }
+
+    static String clearAspectMethod(String method) {
+        if(method.contains("_aroundBody")) {
+            return method.substring(0, method.indexOf("_aroundBody"));
+        } else {
+            return method;
+        }
     }
 }
 
