@@ -12,6 +12,7 @@ import org.carpenter.core.property.GenerationProperties;
 import org.carpenter.core.property.GenerationPropertiesFactory;
 import org.object2source.SourceGenerator;
 import org.object2source.dto.ProviderResult;
+import org.object2source.extension.Extension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,9 +103,21 @@ public class CollectUtil {
 
     public static SourceGenerator getSgInstance() {
         GenerationProperties props = GenerationPropertiesFactory.loadProps();
-        Set<String> excludedPackages = new HashSet<>(Arrays.asList(props.getExcludedPackagesForDp()));
+        Set<String> excludedPackages = new HashSet<>(
+                Arrays.asList(props.getExcludedPackagesForDp())
+        );
         String utilClass = props.getDataProviderClassPattern() + COMMON_UTIL_POSTFIX;
-        return new SourceGenerator(TAB, excludedPackages, utilClass, false);
+        SourceGenerator sg = new SourceGenerator(TAB, excludedPackages, utilClass);
+        sg.setExceptionWhenMaxODepth(false);
+        for(String classname : props.getExternalExtensionClassNames()) {
+            try {
+                Extension ext = (Extension) Class.forName(classname).newInstance();
+                sg.registerExtension(ext);
+            } catch (ReflectiveOperationException reflEx) {
+                throw new IllegalStateException(reflEx);
+            }
+        }
+        return sg;
     }
 
     public static boolean allowedPackageForGeneration(String className) {

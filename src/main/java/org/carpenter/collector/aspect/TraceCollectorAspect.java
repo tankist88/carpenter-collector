@@ -36,6 +36,10 @@ public class TraceCollectorAspect {
     public void thisCoreLib() {
     }
 
+    @Pointcut("execution(* org.object2source..*(..))")
+    public void object2source() {
+    }
+
     @Pointcut("execution(* java..*(..))")
     public void java() {
     }
@@ -52,7 +56,7 @@ public class TraceCollectorAspect {
     public void callMethod() {
     }
 
-    @Around("callMethod() && !thisLib() && !thisCoreLib() && !java() && !sun() && !aspectLibParts()")
+    @Around("callMethod() && !thisLib() && !thisCoreLib() && !object2source() && !java() && !sun() && !aspectLibParts()")
     public Object aroundMethod(final ProceedingJoinPoint joinPoint) throws Throwable {
         Object ret = joinPoint.proceed();
         logMethodCall(joinPoint, ret);
@@ -113,6 +117,7 @@ public class TraceCollectorAspect {
                     returnValue.setAnonymousClass(getLastClassShort(retType.getName()).matches("\\d+"));
                     returnValue.setNearestInstantAbleClass(returnValue.isAnonymousClass() ? getFirstPublicType(retType).getName() : retType.getName());
                     targetMethod.setReturnArg(returnValue);
+                    targetMethod.setCallTime(System.nanoTime());
 
                     saveObjectDump(targetMethod, joinPoint, threadName, joinClass, Objects.hash(args), traceAnalyzeDto.getUpLevelElementKey());
                 }
