@@ -20,6 +20,7 @@ import java.util.concurrent.Executors;
 
 import static org.carpenter.collector.util.CollectUtil.*;
 import static org.carpenter.core.util.ConvertUtil.toServiceProperties;
+import static org.object2source.util.AssigmentUtil.hasZeroArgConstructor;
 import static org.object2source.util.GenerationUtil.*;
 
 @Aspect
@@ -44,8 +45,16 @@ public class TraceCollectorAspect {
     public void java() {
     }
 
+    @Pointcut("execution(* javax..*(..))")
+    public void javax() {
+    }
+
     @Pointcut("execution(* sun..*(..))")
     public void sun() {
+    }
+
+    @Pointcut("execution(* com.sun..*(..))")
+    public void comsun() {
     }
 
     @Pointcut("execution(* org.aspectj..*(..))")
@@ -56,7 +65,7 @@ public class TraceCollectorAspect {
     public void callMethod() {
     }
 
-    @Around("callMethod() && !thisLib() && !thisCoreLib() && !object2source() && !java() && !sun() && !aspectLibParts()")
+    @Around("callMethod() && !thisLib() && !thisCoreLib() && !object2source() && !java() && !javax() && !sun() && !comsun() && !aspectLibParts()")
     public Object aroundMethod(final ProceedingJoinPoint joinPoint) throws Throwable {
         Object ret = joinPoint.proceed();
         logMethodCall(joinPoint, ret);
@@ -105,6 +114,7 @@ public class TraceCollectorAspect {
                     targetMethod.setClassHierarchy(getClassHierarchyStr(classHierarchy));
                     targetMethod.setInterfacesHierarchy(getInterfacesHierarchyStr(targetClass));
                     targetMethod.setServiceFields(toServiceProperties(getAllFieldsOfClass(classHierarchy)));
+                    targetMethod.setClassHasZeroArgConstructor(hasZeroArgConstructor(targetClass, false));
 
                     // технические поля
                     targetMethod.setKey(createMethodKey(joinPoint, threadName));

@@ -109,6 +109,7 @@ public class CollectUtil {
         String utilClass = props.getDataProviderClassPattern() + COMMON_UTIL_POSTFIX;
         SourceGenerator sg = new SourceGenerator(TAB, excludedPackages, utilClass);
         sg.setExceptionWhenMaxODepth(false);
+        sg.setMaxObjectDepth(15);
         for(String classname : props.getExternalExtensionClassNames()) {
             try {
                 Extension ext = (Extension) Class.forName(classname).newInstance();
