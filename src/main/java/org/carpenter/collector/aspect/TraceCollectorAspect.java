@@ -5,7 +5,6 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
-import org.aspectj.runtime.reflect.AspectMethodSignatureHelper;
 import org.carpenter.collector.util.CollectUtil;
 import org.carpenter.core.dto.argument.GeneratedArgument;
 import org.carpenter.core.dto.trace.TraceAnalyzeDto;
@@ -18,6 +17,8 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getParameterTypes;
+import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getReturnType;
 import static org.carpenter.collector.util.CollectUtil.*;
 import static org.carpenter.core.util.ConvertUtil.toServiceProperties;
 import static org.object2source.util.AssigmentUtil.hasZeroArgConstructor;
@@ -75,22 +76,15 @@ public class TraceCollectorAspect {
     private void logMethodCall(final JoinPoint joinPoint, final Object ret) throws CallerNotFoundException {
         final String joinMethod = joinPoint.getSignature().getName();
         final Class targetClass = getJoinClass(joinPoint);
+
+        if (deniedMethod(joinMethod) || deniedMethodSymbol(joinMethod) || deniedClass(targetClass)) return;
+
         final String joinClass = targetClass.getName();
-
-        if (deniedMethod(joinMethod) || deniedMethodSymbol(joinMethod) || deniedPackage(joinClass)) return;
-
-        StackTraceElement[] stackTraceTmp = null;
-        TraceAnalyzeDto traceAnalyzeDtoTmp = null;
-
         final String threadName = Thread.currentThread().getName();
+        final StackTraceElement[] stackTrace = (new Throwable()).getStackTrace();
+        final TraceAnalyzeDto traceAnalyzeTransport = createTraceAnalyzeData(stackTrace, joinPoint, threadName);
 
-        if (allowedPackageForGeneration(joinClass) ||
-                allowedPackageForGeneration(
-                        (traceAnalyzeDtoTmp = createTraceAnalyzeData(
-                                stackTraceTmp = (new Throwable()).getStackTrace(), joinPoint, threadName)).getUpLevelElementClassName())) {
-            final StackTraceElement[] stackTrace = stackTraceTmp != null ? stackTraceTmp : (new Throwable()).getStackTrace();
-            final TraceAnalyzeDto traceAnalyzeTransport = traceAnalyzeDtoTmp;
-
+        if (allowedPackageForGeneration(traceAnalyzeTransport.getUpLevelElementClassName())) {
             Runnable callProcessor = new Runnable() {
                 @Override
                 public void run() {
@@ -99,18 +93,17 @@ public class TraceCollectorAspect {
                     List<Class> classHierarchy = getClassHierarchy(targetClass);
 
                     Object[] args = joinPoint.getArgs();
+                    Class retType = getReturnType(joinPoint);
 
                     MethodCallTraceInfo targetMethod = new MethodCallTraceInfo();
                     targetMethod.setClassName(joinClass);
                     targetMethod.setDeclaringTypeName(joinPoint.getSignature().getDeclaringTypeName());
                     targetMethod.setUnitName(joinMethod);
                     targetMethod.setMemberClass(targetClass.isMemberClass());
-                    targetMethod.setArguments(createGeneratedArgumentList(
-                            AspectMethodSignatureHelper.getParameterTypes(joinPoint),
-                            args, joinMethod, classHierarchy, SG));
+                    targetMethod.setArguments(createGeneratedArgumentList(getParameterTypes(joinPoint), args, joinMethod, classHierarchy, SG));
                     targetMethod.setClassModifiers(targetClass.getModifiers());
                     targetMethod.setMethodModifiers(joinPoint.getSignature().getModifiers());
-                    targetMethod.setVoidMethod(AspectMethodSignatureHelper.getReturnType(joinPoint).equals(Void.TYPE));
+                    targetMethod.setVoidMethod(retType.equals(Void.TYPE));
                     targetMethod.setClassHierarchy(getClassHierarchyStr(classHierarchy));
                     targetMethod.setInterfacesHierarchy(getInterfacesHierarchyStr(targetClass));
                     targetMethod.setServiceFields(toServiceProperties(getAllFieldsOfClass(classHierarchy)));
@@ -119,8 +112,6 @@ public class TraceCollectorAspect {
                     // технические поля
                     targetMethod.setKey(createMethodKey(joinPoint, threadName));
                     targetMethod.setTraceAnalyzeData(traceAnalyzeDto);
-
-                    Class retType = AspectMethodSignatureHelper.getReturnType(joinPoint);
 
                     GeneratedArgument returnValue = new GeneratedArgument(retType.getName(), SG.createDataProviderMethod(ret));
                     returnValue.setInterfacesHierarchy(getInterfacesHierarchyStr(retType));

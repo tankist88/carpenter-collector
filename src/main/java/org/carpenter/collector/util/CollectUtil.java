@@ -130,16 +130,23 @@ public class CollectUtil {
     }
 
     private static boolean deniedPackage(StackTraceElement st) {
-        return st == null || deniedPackage(st.getClassName());
-    }
-
-    public static boolean deniedPackage(String className) {
+        if (st == null) return true;
         for (String ex : GenerationPropertiesFactory.loadProps().getExcludedPackagesForTraceCollect()) {
-            if(className.startsWith(ex)) {
-                return true;
-            }
+            if(st.getClassName().startsWith(ex)) return true;
         }
         return false;
+    }
+
+    public static boolean deniedClass(Class clazz) {
+        List<String> hierarchy = new ArrayList<>();
+        hierarchy.addAll(getClassHierarchyStr(clazz));
+        hierarchy.addAll(getInterfacesHierarchyStr(clazz));
+        for (String c : GenerationPropertiesFactory.loadProps().getAllowedClassesForTraceCollect()) {
+            for (String h : hierarchy) {
+                if (h.startsWith(c)) return false;
+            }
+        }
+        return true;
     }
 
     public static boolean deniedMethod(String methodName) {
