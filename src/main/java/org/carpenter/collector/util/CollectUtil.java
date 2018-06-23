@@ -44,11 +44,11 @@ public class CollectUtil {
             {
                 continue;
             }
-            if (!anonymousCall && level == 0 && !deniedClassAndMethod(stackTrace[i]) && !deniedPackage(stackTrace[i]) && !sameMethod(joinPoint, stackTrace[i])) {
+            if (!anonymousCall && level == 0 && !deniedClassAndMethod(stackTrace[i]) && !deniedPackage(stackTrace[i]) && ((!allowedPackageForGeneration(stackTrace[i].getClassName())) && !sameMethod(joinPoint, stackTrace[i]) || (allowedPackageForGeneration(stackTrace[i].getClassName())))) {
                 upLevelElement = stackTrace[i];
                 break;
             }
-            if (anonymousCall && level == 0 && stackTrace[i].getClassName().equals(anonymousCallerClass) && !sameMethod(joinPoint, stackTrace[i])) {
+            if (anonymousCall && level == 0 && stackTrace[i].getClassName().equals(anonymousCallerClass) && ((!allowedPackageForGeneration(stackTrace[i].getClassName())) && !sameMethod(joinPoint, stackTrace[i]) || (allowedPackageForGeneration(stackTrace[i].getClassName())))) {
                 upLevelElement = stackTrace[i];
                 break;
             }

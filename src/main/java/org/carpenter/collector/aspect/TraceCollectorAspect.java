@@ -6,6 +6,7 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.carpenter.collector.util.CollectUtil;
+import org.carpenter.collector.util.ArgsHashCodeHolder;
 import org.carpenter.core.dto.argument.GeneratedArgument;
 import org.carpenter.core.dto.trace.TraceAnalyzeDto;
 import org.carpenter.core.dto.unit.method.MethodCallTraceInfo;
@@ -67,10 +68,19 @@ public class TraceCollectorAspect {
     }
 
     @Around("callMethod() && !thisLib() && !thisCoreLib() && !object2source() && !java() && !javax() && !sun() && !comsun() && !aspectLibParts()")
-    public Object aroundMethod(final ProceedingJoinPoint joinPoint) throws Throwable {
-        Object ret = joinPoint.proceed();
-        logMethodCall(joinPoint, ret);
+    public Object aroundMethod(ProceedingJoinPoint pjp) throws Throwable {
+        putArgsHashCode(pjp);
+        Object ret = pjp.proceed();
+        logMethodCall(pjp, ret);
         return ret;
+    }
+
+    private void putArgsHashCode(JoinPoint joinPoint) {
+        String joinMethod = joinPoint.getSignature().getName();
+        String joinClassName = getJoinClass(joinPoint).getName();
+        if (!deniedMethod(joinMethod) && !deniedMethodSymbol(joinMethod) && allowedPackageForGeneration(joinClassName)) {
+            ArgsHashCodeHolder.put(Objects.hash(joinPoint.getArgs()));
+        }
     }
 
     private void logMethodCall(final JoinPoint joinPoint, final Object ret) throws CallerNotFoundException {
@@ -80,27 +90,35 @@ public class TraceCollectorAspect {
         if (deniedMethod(joinMethod) || deniedMethodSymbol(joinMethod) || deniedClass(targetClass)) return;
 
         final String joinClass = targetClass.getName();
+
+        boolean testTargetClass = allowedPackageForGeneration(joinClass);
+        final int testClassArgHashCode = testTargetClass ? ArgsHashCodeHolder.get() : 0;
+        if (testTargetClass) {
+            ArgsHashCodeHolder.remove();
+        }
+
+        final int callerArgsHashCode = ArgsHashCodeHolder.get();
         final String threadName = Thread.currentThread().getName();
         final StackTraceElement[] stackTrace = (new Throwable()).getStackTrace();
-        final TraceAnalyzeDto traceAnalyzeTransport = createTraceAnalyzeData(stackTrace, joinPoint, threadName);
+        final TraceAnalyzeDto traceAnalyzeTransport = createTraceAnalyzeData(stackTrace, joinPoint, threadName + callerArgsHashCode);
 
-        if (allowedPackageForGeneration(traceAnalyzeTransport.getUpLevelElementClassName())) {
+        if (testTargetClass || allowedPackageForGeneration(traceAnalyzeTransport.getUpLevelElementClassName())) {
             Runnable callProcessor = new Runnable() {
                 @Override
                 public void run() {
-                    TraceAnalyzeDto traceAnalyzeDto = getTraceAnalyzeDto(traceAnalyzeTransport, joinPoint, threadName, stackTrace);
+                    TraceAnalyzeDto traceAnalyzeDto = getTraceAnalyzeDto(traceAnalyzeTransport, joinPoint, threadName + callerArgsHashCode, stackTrace);
 
                     List<Class> classHierarchy = getClassHierarchy(targetClass);
 
-                    Object[] args = joinPoint.getArgs();
                     Class retType = getReturnType(joinPoint);
+                    int argsHashCode = testClassArgHashCode != 0 ? testClassArgHashCode : Objects.hashCode(joinPoint.getArgs());
 
                     MethodCallTraceInfo targetMethod = new MethodCallTraceInfo();
                     targetMethod.setClassName(joinClass);
                     targetMethod.setDeclaringTypeName(joinPoint.getSignature().getDeclaringTypeName());
                     targetMethod.setUnitName(joinMethod);
                     targetMethod.setMemberClass(targetClass.isMemberClass());
-                    targetMethod.setArguments(createGeneratedArgumentList(getParameterTypes(joinPoint), args, joinMethod, classHierarchy, SG));
+                    targetMethod.setArguments(createGeneratedArgumentList(getParameterTypes(joinPoint), joinPoint.getArgs(), joinMethod, classHierarchy, SG));
                     targetMethod.setClassModifiers(targetClass.getModifiers());
                     targetMethod.setMethodModifiers(joinPoint.getSignature().getModifiers());
                     targetMethod.setVoidMethod(retType.equals(Void.TYPE));
@@ -110,7 +128,7 @@ public class TraceCollectorAspect {
                     targetMethod.setClassHasZeroArgConstructor(hasZeroArgConstructor(targetClass, false));
 
                     // технические поля
-                    targetMethod.setKey(createMethodKey(joinPoint, threadName));
+                    targetMethod.setKey(createMethodKey(joinPoint, threadName + argsHashCode));
                     targetMethod.setTraceAnalyzeData(traceAnalyzeDto);
 
                     GeneratedArgument returnValue = new GeneratedArgument(retType.getName(), SG.createDataProviderMethod(ret));
@@ -120,7 +138,7 @@ public class TraceCollectorAspect {
                     targetMethod.setReturnArg(returnValue);
                     targetMethod.setCallTime(System.nanoTime());
 
-                    saveObjectDump(targetMethod, joinPoint, threadName, joinClass, Objects.hash(args), traceAnalyzeDto.getUpLevelElementKey());
+                    saveObjectDump(targetMethod, joinPoint, threadName + argsHashCode, joinClass, argsHashCode, traceAnalyzeDto.getUpLevelElementKey());
                 }
             };
             EXECUTOR_SERVICE.submit(callProcessor);
