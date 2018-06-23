@@ -97,21 +97,21 @@ public class TraceCollectorAspect {
             ArgsHashCodeHolder.remove();
         }
 
-        final int callerArgsHashCode = ArgsHashCodeHolder.get();
+        int callerArgsHashCode = ArgsHashCodeHolder.get();
         final String threadName = Thread.currentThread().getName();
+        String callerThreadKey = threadName + callerArgsHashCode;
         final StackTraceElement[] stackTrace = (new Throwable()).getStackTrace();
-        final TraceAnalyzeDto traceAnalyzeTransport = createTraceAnalyzeData(stackTrace, joinPoint, threadName + callerArgsHashCode);
+        final TraceAnalyzeDto traceAnalyzeDto = createTraceAnalyzeData(stackTrace, joinPoint, callerThreadKey);
 
-        if (testTargetClass || allowedPackageForGeneration(traceAnalyzeTransport.getUpLevelElementClassName())) {
+        if (testTargetClass || allowedPackageForGeneration(traceAnalyzeDto.getUpLevelElementClassName())) {
             Runnable callProcessor = new Runnable() {
                 @Override
                 public void run() {
-                    TraceAnalyzeDto traceAnalyzeDto = getTraceAnalyzeDto(traceAnalyzeTransport, joinPoint, threadName + callerArgsHashCode, stackTrace);
-
                     List<Class> classHierarchy = getClassHierarchy(targetClass);
 
                     Class retType = getReturnType(joinPoint);
                     int argsHashCode = testClassArgHashCode != 0 ? testClassArgHashCode : Objects.hashCode(joinPoint.getArgs());
+                    String threadKey = threadName + argsHashCode;
 
                     MethodCallTraceInfo targetMethod = new MethodCallTraceInfo();
                     targetMethod.setClassName(joinClass);
@@ -128,7 +128,7 @@ public class TraceCollectorAspect {
                     targetMethod.setClassHasZeroArgConstructor(hasZeroArgConstructor(targetClass, false));
 
                     // технические поля
-                    targetMethod.setKey(createMethodKey(joinPoint, threadName + argsHashCode));
+                    targetMethod.setKey(createMethodKey(joinPoint, threadKey));
                     targetMethod.setTraceAnalyzeData(traceAnalyzeDto);
 
                     GeneratedArgument returnValue = new GeneratedArgument(retType.getName(), SG.createDataProviderMethod(ret));
@@ -138,7 +138,7 @@ public class TraceCollectorAspect {
                     targetMethod.setReturnArg(returnValue);
                     targetMethod.setCallTime(System.nanoTime());
 
-                    saveObjectDump(targetMethod, joinPoint, threadName + argsHashCode, joinClass, argsHashCode, traceAnalyzeDto.getUpLevelElementKey());
+                    saveObjectDump(targetMethod, joinPoint, threadKey, joinClass, traceAnalyzeDto.getUpLevelElementKey());
                 }
             };
             EXECUTOR_SERVICE.submit(callProcessor);

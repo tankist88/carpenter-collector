@@ -44,11 +44,11 @@ public class CollectUtil {
             {
                 continue;
             }
-            if (!anonymousCall && level == 0 && !deniedClassAndMethod(stackTrace[i]) && !deniedPackage(stackTrace[i]) && ((!allowedPackageForGeneration(stackTrace[i].getClassName())) && !sameMethod(joinPoint, stackTrace[i]) || (allowedPackageForGeneration(stackTrace[i].getClassName())))) {
+            if (level == 0 && !anonymousCall && allowedElement(stackTrace[i]) && checkSameMethod(joinPoint, stackTrace[i])) {
                 upLevelElement = stackTrace[i];
                 break;
             }
-            if (anonymousCall && level == 0 && stackTrace[i].getClassName().equals(anonymousCallerClass) && ((!allowedPackageForGeneration(stackTrace[i].getClassName())) && !sameMethod(joinPoint, stackTrace[i]) || (allowedPackageForGeneration(stackTrace[i].getClassName())))) {
+            if (level == 0 && anonymousCall && stackTrace[i].getClassName().equals(anonymousCallerClass) && checkSameMethod(joinPoint, stackTrace[i])) {
                 upLevelElement = stackTrace[i];
                 break;
             }
@@ -74,6 +74,14 @@ public class CollectUtil {
             throw new CallerNotFoundException("Cant' find caller for " + createMethodKey(joinPoint, threadName));
         }
         return result;
+    }
+
+    private static boolean allowedElement(StackTraceElement st) {
+        return !deniedClassAndMethod(st) && !deniedPackage(st);
+    }
+
+    private static boolean checkSameMethod(JoinPoint joinPoint, StackTraceElement st) {
+        return (!allowedPackageForGeneration(st.getClassName()) && !sameMethod(joinPoint, st)) || allowedPackageForGeneration(st.getClassName());
     }
 
     private static boolean sameMethod(JoinPoint joinPoint, StackTraceElement st) {
@@ -187,9 +195,9 @@ public class CollectUtil {
         return getMethodKey(joinClass, joinMethod, threadName);
     }
 
-    public static void saveObjectDump(Serializable object, JoinPoint joinPoint, String threadName, String className, int argsHashCode, String upLevelKey) {
+    public static void saveObjectDump(Serializable object, JoinPoint joinPoint, String threadKey, String className, String upLevelKey) {
         try {
-            String key = createMethodKey(joinPoint, threadName)+ "_" + argsHashCode + "_" + upLevelKey;
+            String key = createMethodKey(joinPoint, threadKey) + "_" + upLevelKey;
             String keyHash = DigestUtils.md5Hex(key);
             String packageFileStruct = GenerationPropertiesFactory.loadProps().getObjectDumpDir() + "/" + getPackage(className).replaceAll("\\.", "/");
             FileUtils.forceMkdir(new File(packageFileStruct));
@@ -203,18 +211,6 @@ public class CollectUtil {
             String errorMsg = "Can't save object dump! " + iex.getMessage();
             logger.error(errorMsg);
             throw new IllegalStateException(errorMsg, iex);
-        }
-    }
-
-    public static TraceAnalyzeDto getTraceAnalyzeDto(TraceAnalyzeDto traceAnalyzeTransport, JoinPoint joinPoint, String threadName, StackTraceElement[] stackTrace) {
-        try {
-            return traceAnalyzeTransport != null ? traceAnalyzeTransport : createTraceAnalyzeData(stackTrace, joinPoint, threadName);
-        } catch (CallerNotFoundException ce) {
-            String joinClass = getJoinClass(joinPoint).getName();
-            String joinMethod = joinPoint.getSignature().getName();
-            String errorMsg = "FATAL ERROR. Can't determine caller for " + joinClass + "." + joinMethod;
-            logger.error(errorMsg, ce);
-            throw new IllegalStateException(errorMsg, ce);
         }
     }
 
