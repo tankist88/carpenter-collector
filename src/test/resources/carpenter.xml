@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<carpenterConfig>
+    <utGenDir>C:\Users\tankist\AppData\Local\Temp\/ut_gen</utGenDir>
+    <objectDumpDir>C:\Users\tankist\AppData\Local\Temp\/trace_dump</objectDumpDir>
+    <dataProviderClassPattern>org.object2source.util.CommonDataProvider_</dataProviderClassPattern>
+    <allowedPackagesForTests>
+        <value>org.carpenter</value>
+    </allowedPackagesForTests>
+    <excludedPackagesForTraceCollect>
+        <value>sun</value>
+    </excludedPackagesForTraceCollect>
+    <excludedPackagesForDp>
+        <value>net</value>
+        <value>com</value>
+    </excludedPackagesForDp>
+    <externalAssertExtensionClassNames/>
+</carpenterConfig>

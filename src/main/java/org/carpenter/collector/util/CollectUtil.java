@@ -5,6 +5,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.SerializationUtils;
 import org.aspectj.lang.JoinPoint;
 import org.carpenter.collector.aspect.TraceCollectorAspect;
+import org.carpenter.collector.dto.MethodCallInfo;
 import org.carpenter.core.dto.argument.GeneratedArgument;
 import org.carpenter.core.dto.trace.TraceAnalyzeDto;
 import org.carpenter.core.exception.CallerNotFoundException;
@@ -20,6 +21,8 @@ import java.io.*;
 import java.lang.reflect.Modifier;
 import java.util.*;
 
+import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getParameterTypes;
+import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getReturnType;
 import static org.carpenter.core.property.AbstractGenerationProperties.*;
 import static org.carpenter.core.util.TypeHelper.getMethodArgGenericTypeStr;
 import static org.object2source.util.GenerationUtil.*;
@@ -29,6 +32,8 @@ public class CollectUtil {
 
     private static final String[] DENIED_METHODS = {"hashCode","equals","compare"};
     private static final String[] DENIED_METHOD_SYMBOLS = {"$"};
+
+    private static final SourceGenerator SG = getSgInstance();
 
     public static TraceAnalyzeDto createTraceAnalyzeData(StackTraceElement[] stackTrace, JoinPoint joinPoint, String threadName) throws CallerNotFoundException {
         TraceAnalyzeDto result = new TraceAnalyzeDto();
@@ -90,11 +95,11 @@ public class CollectUtil {
         return className.equals(st.getClassName()) && methodName.equals(clearAspectMethod(st.getMethodName()));
     }
 
-    public static List<GeneratedArgument> createGeneratedArgumentList(Class[] types, Object[] args, String methodName, List<Class> classHierarchy, SourceGenerator sg) {
+    public static List<GeneratedArgument> createGeneratedArgumentList(Class[] types, Class[] argTypes, String methodName, List<Class> classHierarchy, ProviderResult[] argsProviderArr) {
         List<GeneratedArgument> argList = new ArrayList<>();
-        for (int i = 0; i < args.length; i++) {
-            Class type = args[i] != null ? args[i].getClass() : types[i];
-            ProviderResult providerResult = !Modifier.isPrivate(type.getModifiers()) ? sg.createDataProviderMethod(args[i]) : null;
+        for (int i = 0; i < argTypes.length; i++) {
+            Class type = argTypes[i];
+            ProviderResult providerResult = !Modifier.isPrivate(type.getModifiers()) ? argsProviderArr[i] : null;
             GeneratedArgument genArg = new GeneratedArgument(type.getName(), providerResult);
             try {
                 genArg.setGenericString(getMethodArgGenericTypeStr(classHierarchy, methodName, i, types));
@@ -195,9 +200,9 @@ public class CollectUtil {
         return getMethodKey(joinClass, joinMethod, threadName);
     }
 
-    public static void saveObjectDump(Serializable object, JoinPoint joinPoint, String threadKey, String className, String upLevelKey) {
+    public static void saveObjectDump(Serializable object, String methodKey, String className, String upLevelKey) {
         try {
-            String key = createMethodKey(joinPoint, threadKey) + "_" + upLevelKey;
+            String key = methodKey + "_" + upLevelKey;
             String keyHash = DigestUtils.md5Hex(key);
             String packageFileStruct = GenerationPropertiesFactory.loadProps().getObjectDumpDir() + "/" + getPackage(className).replaceAll("\\.", "/");
             FileUtils.forceMkdir(new File(packageFileStruct));
@@ -224,6 +229,42 @@ public class CollectUtil {
         } else {
             return method;
         }
+    }
+
+    public static MethodCallInfo createMethodCallInfo(JoinPoint joinPoint, Object ret, int testClassArgHashCode, TraceAnalyzeDto traceAnalyzeDto) {
+        MethodCallInfo result = new MethodCallInfo();
+
+        Object[] args = joinPoint.getArgs();
+        String threadName = Thread.currentThread().getName();
+
+        ProviderResult[] argsProviders = new ProviderResult[args.length];
+        for (int i = 0; i < args.length; i++) {
+            argsProviders[i] = SG.createDataProviderMethod(args[i]);
+        }
+        result.setArgsProviders(argsProviders);
+
+        Class[] parameterTypes = getParameterTypes(joinPoint);
+        result.setParameterTypes(parameterTypes);
+
+        Class[] argTypes = new Class[args.length];
+        for (int i = 0; i < args.length; i++) {
+            argTypes[i] = args[i] != null ? args[i].getClass() : parameterTypes[i];
+        }
+        result.setArgTypes(argTypes);
+
+        result.setClazz(getJoinClass(joinPoint));
+        result.setDeclaringTypeName(joinPoint.getSignature().getDeclaringTypeName());
+
+        int argsHashCode = testClassArgHashCode != 0 ? testClassArgHashCode : Objects.hashCode(args);
+        String threadKey = threadName + argsHashCode;
+        result.setMethodKey(createMethodKey(joinPoint, threadKey));
+        result.setMethodModifiers(joinPoint.getSignature().getModifiers());
+        result.setMethodName(joinPoint.getSignature().getName());
+        result.setRetType(getReturnType(joinPoint));
+        result.setReturnProvider(SG.createDataProviderMethod(ret));
+        result.setTraceAnalyze(traceAnalyzeDto);
+
+        return result;
     }
 }
 

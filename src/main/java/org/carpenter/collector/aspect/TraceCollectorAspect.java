@@ -5,21 +5,18 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
-import org.carpenter.collector.util.CollectUtil;
+import org.carpenter.collector.dto.MethodCallInfo;
 import org.carpenter.collector.util.ArgsHashCodeHolder;
 import org.carpenter.core.dto.argument.GeneratedArgument;
 import org.carpenter.core.dto.trace.TraceAnalyzeDto;
 import org.carpenter.core.dto.unit.method.MethodCallTraceInfo;
 import org.carpenter.core.exception.CallerNotFoundException;
-import org.object2source.SourceGenerator;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getParameterTypes;
-import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getReturnType;
 import static org.carpenter.collector.util.CollectUtil.*;
 import static org.carpenter.core.util.ConvertUtil.toServiceProperties;
 import static org.object2source.util.AssigmentUtil.hasZeroArgConstructor;
@@ -27,8 +24,6 @@ import static org.object2source.util.GenerationUtil.*;
 
 @Aspect
 public class TraceCollectorAspect {
-    private static final SourceGenerator SG = CollectUtil.getSgInstance();
-
     private static final ExecutorService EXECUTOR_SERVICE = Executors.newFixedThreadPool(50);
 
     @Pointcut("execution(* org.carpenter.collector..*(..))")
@@ -83,62 +78,60 @@ public class TraceCollectorAspect {
         }
     }
 
-    private void logMethodCall(final JoinPoint joinPoint, final Object ret) throws CallerNotFoundException {
-        final String joinMethod = joinPoint.getSignature().getName();
-        final Class targetClass = getJoinClass(joinPoint);
+    private void logMethodCall(JoinPoint joinPoint, Object ret) throws CallerNotFoundException {
+        String joinMethod = joinPoint.getSignature().getName();
+        Class targetClass = getJoinClass(joinPoint);
 
         if (deniedMethod(joinMethod) || deniedMethodSymbol(joinMethod) || deniedClass(targetClass)) return;
 
-        final String joinClass = targetClass.getName();
+        String joinClass = targetClass.getName();
 
         boolean testTargetClass = allowedPackageForGeneration(joinClass);
-        final int testClassArgHashCode = testTargetClass ? ArgsHashCodeHolder.get() : 0;
+        int testClassArgHashCode = testTargetClass ? ArgsHashCodeHolder.get() : 0;
         if (testTargetClass) {
             ArgsHashCodeHolder.remove();
         }
-
         int callerArgsHashCode = ArgsHashCodeHolder.get();
-        final String threadName = Thread.currentThread().getName();
+        String threadName = Thread.currentThread().getName();
         String callerThreadKey = threadName + callerArgsHashCode;
-        final StackTraceElement[] stackTrace = (new Throwable()).getStackTrace();
-        final TraceAnalyzeDto traceAnalyzeDto = createTraceAnalyzeData(stackTrace, joinPoint, callerThreadKey);
+        StackTraceElement[] stackTrace = (new Throwable()).getStackTrace();
+        TraceAnalyzeDto traceAnalyzeDto = createTraceAnalyzeData(stackTrace, joinPoint, callerThreadKey);
+
+        final MethodCallInfo info = createMethodCallInfo(joinPoint, ret, testClassArgHashCode,traceAnalyzeDto);
 
         if (testTargetClass || allowedPackageForGeneration(traceAnalyzeDto.getUpLevelElementClassName())) {
             Runnable callProcessor = new Runnable() {
                 @Override
                 public void run() {
-                    List<Class> classHierarchy = getClassHierarchy(targetClass);
-
-                    Class retType = getReturnType(joinPoint);
-                    int argsHashCode = testClassArgHashCode != 0 ? testClassArgHashCode : Objects.hashCode(joinPoint.getArgs());
-                    String threadKey = threadName + argsHashCode;
+                    List<Class> classHierarchy = getClassHierarchy(info.getClazz());
 
                     MethodCallTraceInfo targetMethod = new MethodCallTraceInfo();
-                    targetMethod.setClassName(joinClass);
-                    targetMethod.setDeclaringTypeName(joinPoint.getSignature().getDeclaringTypeName());
-                    targetMethod.setUnitName(joinMethod);
-                    targetMethod.setMemberClass(targetClass.isMemberClass());
-                    targetMethod.setArguments(createGeneratedArgumentList(getParameterTypes(joinPoint), joinPoint.getArgs(), joinMethod, classHierarchy, SG));
-                    targetMethod.setClassModifiers(targetClass.getModifiers());
-                    targetMethod.setMethodModifiers(joinPoint.getSignature().getModifiers());
-                    targetMethod.setVoidMethod(retType.equals(Void.TYPE));
+                    targetMethod.setClassName(info.getClazz().getName());
+                    targetMethod.setDeclaringTypeName(info.getDeclaringTypeName());
+                    targetMethod.setUnitName(info.getMethodName());
+                    targetMethod.setMemberClass(info.getClazz().isMemberClass());
+                    targetMethod.setArguments(createGeneratedArgumentList(info.getParameterTypes(), info.getArgTypes(), info.getMethodName(), classHierarchy, info.getArgsProviders()));
+                    targetMethod.setClassModifiers(info.getClazz().getModifiers());
+                    targetMethod.setMethodModifiers(info.getMethodModifiers());
+                    targetMethod.setVoidMethod(info.getRetType().equals(Void.TYPE));
                     targetMethod.setClassHierarchy(getClassHierarchyStr(classHierarchy));
-                    targetMethod.setInterfacesHierarchy(getInterfacesHierarchyStr(targetClass));
+                    targetMethod.setInterfacesHierarchy(getInterfacesHierarchyStr(info.getClazz()));
                     targetMethod.setServiceFields(toServiceProperties(getAllFieldsOfClass(classHierarchy)));
-                    targetMethod.setClassHasZeroArgConstructor(hasZeroArgConstructor(targetClass, false));
+                    targetMethod.setClassHasZeroArgConstructor(hasZeroArgConstructor(info.getClazz(), false));
 
                     // технические поля
-                    targetMethod.setKey(createMethodKey(joinPoint, threadKey));
-                    targetMethod.setTraceAnalyzeData(traceAnalyzeDto);
+                    targetMethod.setKey(info.getMethodKey());
+                    targetMethod.setTraceAnalyzeData(info.getTraceAnalyze());
 
-                    GeneratedArgument returnValue = new GeneratedArgument(retType.getName(), SG.createDataProviderMethod(ret));
-                    returnValue.setInterfacesHierarchy(getInterfacesHierarchyStr(retType));
-                    returnValue.setAnonymousClass(getLastClassShort(retType.getName()).matches("\\d+"));
-                    returnValue.setNearestInstantAbleClass(returnValue.isAnonymousClass() ? getFirstPublicType(retType).getName() : retType.getName());
+                    GeneratedArgument returnValue = new GeneratedArgument(info.getRetType().getName(), info.getReturnProvider());
+                    returnValue.setInterfacesHierarchy(getInterfacesHierarchyStr(info.getRetType()));
+                    returnValue.setAnonymousClass(getLastClassShort(info.getRetType().getName()).matches("\\d+"));
+                    returnValue.setNearestInstantAbleClass(returnValue.isAnonymousClass() ? getFirstPublicType(info.getRetType()).getName() : info.getRetType().getName());
+
                     targetMethod.setReturnArg(returnValue);
                     targetMethod.setCallTime(System.nanoTime());
 
-                    saveObjectDump(targetMethod, joinPoint, threadKey, joinClass, traceAnalyzeDto.getUpLevelElementKey());
+                    saveObjectDump(targetMethod, info.getMethodKey(), info.getClazz().getName(), info.getTraceAnalyze().getUpLevelElementKey());
                 }
             };
             EXECUTOR_SERVICE.submit(callProcessor);
