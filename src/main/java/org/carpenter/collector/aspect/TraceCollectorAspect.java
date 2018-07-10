@@ -64,42 +64,40 @@ public class TraceCollectorAspect {
 
     @Around("callMethod() && !thisLib() && !thisCoreLib() && !object2source() && !java() && !javax() && !sun() && !comsun() && !aspectLibParts()")
     public Object aroundMethod(ProceedingJoinPoint pjp) throws Throwable {
-        putArgsHashCode(pjp);
+        boolean skip = isSkip(pjp);
+        if (!skip) {
+            putArgsHashCode(pjp);
+        }
         Object ret = pjp.proceed();
-        logMethodCall(pjp, ret);
+        if (!skip) {
+            logMethodCall(pjp, ret);
+        }
         return ret;
     }
 
-    private void putArgsHashCode(JoinPoint joinPoint) {
+    private boolean isSkip(JoinPoint joinPoint) {
         String joinMethod = joinPoint.getSignature().getName();
-        String joinClassName = getJoinClass(joinPoint).getName();
-        if (!deniedMethod(joinMethod) && !deniedMethodSymbol(joinMethod) && allowedPackageForGeneration(joinClassName)) {
-            ArgsHashCodeHolder.put(Objects.hash(joinPoint.getArgs()));
-        }
+        Class targetClass = getJoinClass(joinPoint);
+        return deniedMethod(joinMethod) || deniedMethodSymbol(joinMethod) || deniedClass(targetClass);
+    }
+
+    private void putArgsHashCode(JoinPoint joinPoint) {
+        ArgsHashCodeHolder.put(Objects.hash(joinPoint.getArgs()));
     }
 
     private void logMethodCall(JoinPoint joinPoint, Object ret) throws CallerNotFoundException {
-        String joinMethod = joinPoint.getSignature().getName();
         Class targetClass = getJoinClass(joinPoint);
-
-        if (deniedMethod(joinMethod) || deniedMethodSymbol(joinMethod) || deniedClass(targetClass)) return;
 
         String joinClass = targetClass.getName();
 
-        boolean testTargetClass = allowedPackageForGeneration(joinClass);
-        int testClassArgHashCode = testTargetClass ? ArgsHashCodeHolder.get() : 0;
-        if (testTargetClass) {
-            ArgsHashCodeHolder.remove();
-        }
-        int callerArgsHashCode = ArgsHashCodeHolder.get();
+        int ownArgsHashCode = ArgsHashCodeHolder.pop();
+        int callerArgsHashCode = ArgsHashCodeHolder.peek();
         String threadName = Thread.currentThread().getName();
-        String callerThreadKey = threadName + callerArgsHashCode;
         StackTraceElement[] stackTrace = (new Throwable()).getStackTrace();
-        TraceAnalyzeDto traceAnalyzeDto = createTraceAnalyzeData(stackTrace, joinPoint, callerThreadKey);
+        TraceAnalyzeDto traceAnalyzeDto = createTraceAnalyzeData(stackTrace, joinPoint, ownArgsHashCode, callerArgsHashCode, threadName);
 
-        final MethodCallInfo info = createMethodCallInfo(joinPoint, ret, testClassArgHashCode,traceAnalyzeDto);
-
-        if (testTargetClass || allowedPackageForGeneration(traceAnalyzeDto.getUpLevelElementClassName())) {
+        if (allowedPackageForGeneration(joinClass) || allowedPackageForGeneration(traceAnalyzeDto.getUpLevelElementClassName())) {
+            final MethodCallInfo info = createMethodCallInfo(joinPoint, ret, ownArgsHashCode, traceAnalyzeDto);
             Runnable callProcessor = new Runnable() {
                 @Override
                 public void run() {

@@ -16,7 +16,7 @@ public class ArgsHashCodeHolder {
         return stack;
     }
 
-    public static int get() {
+    public static int peek() {
         Stack<Integer> stack = getStack();
         if (stack.size() > 0) {
             return stack.peek();
@@ -25,10 +25,12 @@ public class ArgsHashCodeHolder {
         }
     }
 
-    public static void remove() {
+    public static int pop() {
         Stack<Integer> stack = getStack();
         if (stack.size() > 0) {
-            stack.pop();
+            return stack.pop();
+        } else {
+            return 0;
         }
     }
 

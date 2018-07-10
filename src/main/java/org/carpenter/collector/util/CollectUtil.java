@@ -35,7 +35,7 @@ public class CollectUtil {
 
     private static final SourceGenerator SG = getSgInstance();
 
-    public static TraceAnalyzeDto createTraceAnalyzeData(StackTraceElement[] stackTrace, JoinPoint joinPoint, String threadName) throws CallerNotFoundException {
+    public static TraceAnalyzeDto createTraceAnalyzeData(StackTraceElement[] stackTrace, JoinPoint joinPoint, int ownArgsHashCode, int callerArgsHashCode, String threadName) throws CallerNotFoundException {
         TraceAnalyzeDto result = new TraceAnalyzeDto();
         StackTraceElement upLevelElement = null;
         boolean anonymousCall = false;
@@ -49,11 +49,14 @@ public class CollectUtil {
             {
                 continue;
             }
-            if (level == 0 && !anonymousCall && allowedElement(stackTrace[i]) && checkSameMethod(joinPoint, stackTrace[i])) {
+
+            boolean sameMethodOk = checkSameMethod(joinPoint, stackTrace[i], ownArgsHashCode, callerArgsHashCode);
+
+            if (level == 0 && !anonymousCall && allowedElement(stackTrace[i]) && sameMethodOk) {
                 upLevelElement = stackTrace[i];
                 break;
             }
-            if (level == 0 && anonymousCall && stackTrace[i].getClassName().equals(anonymousCallerClass) && checkSameMethod(joinPoint, stackTrace[i])) {
+            if (level == 0 && anonymousCall && stackTrace[i].getClassName().equals(anonymousCallerClass) && sameMethodOk) {
                 upLevelElement = stackTrace[i];
                 break;
             }
@@ -69,14 +72,15 @@ public class CollectUtil {
                 tmpAnonymousUpLevelElement = stackTrace[i];
             }
         }
+        String callerThreadKey = threadName + callerArgsHashCode;
         if(upLevelElement != null) {
-            result.setUpLevelElementKey(CollectUtil.getMethodKey(upLevelElement, threadName));
+            result.setUpLevelElementKey(CollectUtil.getMethodKey(upLevelElement, callerThreadKey));
             result.setUpLevelElementClassName(upLevelElement.getClassName());
         } else if (tmpAnonymousUpLevelElement != null) {
-            result.setUpLevelElementKey(CollectUtil.getMethodKey(tmpAnonymousUpLevelElement, threadName));
+            result.setUpLevelElementKey(CollectUtil.getMethodKey(tmpAnonymousUpLevelElement, callerThreadKey));
             result.setUpLevelElementClassName(tmpAnonymousUpLevelElement.getClassName());
         } else {
-            throw new CallerNotFoundException("Cant' find caller for " + createMethodKey(joinPoint, threadName));
+            throw new CallerNotFoundException("Cant' find caller for " + createMethodKey(joinPoint, callerThreadKey));
         }
         return result;
     }
@@ -85,8 +89,8 @@ public class CollectUtil {
         return !deniedClassAndMethod(st) && !deniedPackage(st);
     }
 
-    private static boolean checkSameMethod(JoinPoint joinPoint, StackTraceElement st) {
-        return (!allowedPackageForGeneration(st.getClassName()) && !sameMethod(joinPoint, st)) || allowedPackageForGeneration(st.getClassName());
+    private static boolean checkSameMethod(JoinPoint joinPoint, StackTraceElement st, int ownArgsHashCode, int callerArgsHashCode) {
+        return (!allowedPackageForGeneration(st.getClassName()) && (!sameMethod(joinPoint, st) || ownArgsHashCode != callerArgsHashCode)) || allowedPackageForGeneration(st.getClassName());
     }
 
     private static boolean sameMethod(JoinPoint joinPoint, StackTraceElement st) {
@@ -231,7 +235,7 @@ public class CollectUtil {
         }
     }
 
-    public static MethodCallInfo createMethodCallInfo(JoinPoint joinPoint, Object ret, int testClassArgHashCode, TraceAnalyzeDto traceAnalyzeDto) {
+    public static MethodCallInfo createMethodCallInfo(JoinPoint joinPoint, Object ret, int ownArgsHashCode, TraceAnalyzeDto traceAnalyzeDto) {
         MethodCallInfo result = new MethodCallInfo();
 
         Object[] args = joinPoint.getArgs();
@@ -255,8 +259,7 @@ public class CollectUtil {
         result.setClazz(getJoinClass(joinPoint));
         result.setDeclaringTypeName(joinPoint.getSignature().getDeclaringTypeName());
 
-        int argsHashCode = testClassArgHashCode != 0 ? testClassArgHashCode : Objects.hashCode(args);
-        String threadKey = threadName + argsHashCode;
+        String threadKey = threadName + ownArgsHashCode;
         result.setMethodKey(createMethodKey(joinPoint, threadKey));
         result.setMethodModifiers(joinPoint.getSignature().getModifiers());
         result.setMethodName(joinPoint.getSignature().getName());
