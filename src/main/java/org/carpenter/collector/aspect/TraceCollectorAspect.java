@@ -6,11 +6,11 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.carpenter.collector.dto.MethodCallInfo;
+import org.carpenter.collector.dto.TraceElement;
 import org.carpenter.collector.util.ArgsHashCodeHolder;
 import org.carpenter.core.dto.argument.GeneratedArgument;
 import org.carpenter.core.dto.trace.TraceAnalyzeDto;
 import org.carpenter.core.dto.unit.method.MethodCallTraceInfo;
-import org.carpenter.core.exception.CallerNotFoundException;
 
 import java.util.List;
 import java.util.Objects;
@@ -65,38 +65,42 @@ public class TraceCollectorAspect {
     @Around("callMethod() && !thisLib() && !thisCoreLib() && !object2source() && !java() && !javax() && !sun() && !comsun() && !aspectLibParts()")
     public Object aroundMethod(ProceedingJoinPoint pjp) throws Throwable {
         boolean skip = isSkip(pjp);
-        if (!skip) {
-            putArgsHashCode(pjp);
-        }
+        if (!skip) putArgsHashCode(pjp);
         Object ret = pjp.proceed();
-        if (!skip) {
-            logMethodCall(pjp, ret);
-        }
+        if (!skip) logMethodCall(pjp, ret);
         return ret;
     }
 
     private boolean isSkip(JoinPoint joinPoint) {
         String joinMethod = joinPoint.getSignature().getName();
-        Class targetClass = getJoinClass(joinPoint);
-        return deniedMethod(joinMethod) || deniedMethodSymbol(joinMethod) || deniedClass(targetClass);
+        String threadName = Thread.currentThread().getName();
+        return deniedMethod(joinMethod) || deniedMethodSymbol(joinMethod) || excludedThreadName(threadName);
     }
 
     private void putArgsHashCode(JoinPoint joinPoint) {
-        ArgsHashCodeHolder.put(Objects.hash(joinPoint.getArgs()));
+        String joinMethod = joinPoint.getSignature().getName();
+        String joinClass = joinPoint.getSourceLocation().getWithinType().getName();
+        ArgsHashCodeHolder.put(new TraceElement(Objects.hash(joinPoint.getArgs()), joinClass, joinMethod));
     }
 
-    private void logMethodCall(JoinPoint joinPoint, Object ret) throws CallerNotFoundException {
+    private void logMethodCall(JoinPoint joinPoint, Object ret) {
         Class targetClass = getJoinClass(joinPoint);
-
         String joinClass = targetClass.getName();
 
-        int ownArgsHashCode = ArgsHashCodeHolder.pop();
-        int callerArgsHashCode = ArgsHashCodeHolder.peek();
-        String threadName = Thread.currentThread().getName();
-        StackTraceElement[] stackTrace = (new Throwable()).getStackTrace();
-        TraceAnalyzeDto traceAnalyzeDto = createTraceAnalyzeData(stackTrace, joinPoint, ownArgsHashCode, callerArgsHashCode, threadName);
+        int ownArgsHashCode = ArgsHashCodeHolder.pop().getArgsHashCode();
+        TraceElement callerTraceElement = ArgsHashCodeHolder.peek();
+        String callerClassName = callerTraceElement.getClassName();
 
-        if (allowedPackageForGeneration(joinClass) || allowedPackageForGeneration(traceAnalyzeDto.getUpLevelElementClassName())) {
+        if (allowedPackageForGeneration(joinClass) || allowedPackageForGeneration(callerClassName)) {
+
+            String callerMethodName = callerTraceElement.getMethodName();
+            String threadName = Thread.currentThread().getName();
+            int callerArgsHashCode = callerTraceElement.getArgsHashCode();
+            String callerThreadKey = threadName + callerArgsHashCode;
+            TraceAnalyzeDto traceAnalyzeDto = new TraceAnalyzeDto();
+            traceAnalyzeDto.setUpLevelElementKey(getMethodKey(callerClassName, callerMethodName, callerThreadKey));
+            traceAnalyzeDto.setUpLevelElementClassName(callerTraceElement.getClassName());
+
             final MethodCallInfo info = createMethodCallInfo(joinPoint, ret, ownArgsHashCode, traceAnalyzeDto);
             Runnable callProcessor = new Runnable() {
                 @Override
