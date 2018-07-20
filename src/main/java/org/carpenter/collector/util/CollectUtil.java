@@ -4,11 +4,9 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.SerializationUtils;
 import org.aspectj.lang.JoinPoint;
-import org.carpenter.collector.aspect.TraceCollectorAspect;
 import org.carpenter.collector.dto.MethodCallInfo;
 import org.carpenter.core.dto.argument.GeneratedArgument;
 import org.carpenter.core.dto.trace.TraceAnalyzeDto;
-import org.carpenter.core.exception.CallerNotFoundException;
 import org.carpenter.core.property.GenerationProperties;
 import org.carpenter.core.property.GenerationPropertiesFactory;
 import org.object2source.SourceGenerator;
@@ -33,71 +31,7 @@ public class CollectUtil {
     private static final String[] DENIED_METHODS = {"hashCode","equals","compare"};
     private static final String[] DENIED_METHOD_SYMBOLS = {"$"};
 
-    private static final SourceGenerator SG = getSgInstance();
-
-    public static TraceAnalyzeDto createTraceAnalyzeData(StackTraceElement[] stackTrace, JoinPoint joinPoint, int ownArgsHashCode, int callerArgsHashCode, String threadName) throws CallerNotFoundException {
-        TraceAnalyzeDto result = new TraceAnalyzeDto();
-        StackTraceElement upLevelElement = null;
-        boolean anonymousCall = false;
-        String anonymousCallerClass = null;
-        StackTraceElement tmpAnonymousUpLevelElement = null;
-        int level = 1;
-        for (int i = 1; i < stackTrace.length; i++) {
-            if (    stackTrace[i].getClassName().equals(TraceCollectorAspect.class.getName()) ||
-                    stackTrace[i].getClassName().equals(Thread.class.getName()) ||
-                    stackTrace[i].getClassName().equals(CollectUtil.class.getName()))
-            {
-                continue;
-            }
-
-            boolean sameMethodOk = checkSameMethod(joinPoint, stackTrace[i], ownArgsHashCode, callerArgsHashCode);
-
-            if (level == 0 && !anonymousCall && allowedElement(stackTrace[i]) && sameMethodOk) {
-                upLevelElement = stackTrace[i];
-                break;
-            }
-            if (level == 0 && anonymousCall && stackTrace[i].getClassName().equals(anonymousCallerClass) && sameMethodOk) {
-                upLevelElement = stackTrace[i];
-                break;
-            }
-            if (level > 0 && sameMethod(joinPoint, stackTrace[i])) {
-                level--;
-            }
-            if(!anonymousCall) {
-                anonymousCall = getLastClassShort(stackTrace[i].getClassName()).matches("\\d+");
-                if (anonymousCall && anonymousCallerClass == null) {
-                    anonymousCallerClass = getOwnerParentClass(stackTrace[i].getClassName());
-                }
-            } else if (!getLastClassShort(stackTrace[i].getClassName()).matches("\\d+")) {
-                tmpAnonymousUpLevelElement = stackTrace[i];
-            }
-        }
-        String callerThreadKey = threadName + callerArgsHashCode;
-        if(upLevelElement != null) {
-            result.setUpLevelElementKey(CollectUtil.getMethodKey(upLevelElement, callerThreadKey));
-            result.setUpLevelElementClassName(upLevelElement.getClassName());
-        } else if (tmpAnonymousUpLevelElement != null) {
-            result.setUpLevelElementKey(CollectUtil.getMethodKey(tmpAnonymousUpLevelElement, callerThreadKey));
-            result.setUpLevelElementClassName(tmpAnonymousUpLevelElement.getClassName());
-        } else {
-            throw new CallerNotFoundException("Cant' find caller for " + createMethodKey(joinPoint, callerThreadKey));
-        }
-        return result;
-    }
-
-    private static boolean allowedElement(StackTraceElement st) {
-        return !deniedClassAndMethod(st) && !deniedPackage(st);
-    }
-
-    private static boolean checkSameMethod(JoinPoint joinPoint, StackTraceElement st, int ownArgsHashCode, int callerArgsHashCode) {
-        return (!allowedPackageForGeneration(st.getClassName()) && (!sameMethod(joinPoint, st) || ownArgsHashCode != callerArgsHashCode)) || allowedPackageForGeneration(st.getClassName());
-    }
-
-    private static boolean sameMethod(JoinPoint joinPoint, StackTraceElement st) {
-        String className = joinPoint.getSourceLocation().getWithinType().getName();
-        String methodName = joinPoint.getSignature().getName();
-        return className.equals(st.getClassName()) && methodName.equals(clearAspectMethod(st.getMethodName()));
-    }
+    public static final SourceGenerator SG = getSgInstance();
 
     public static List<GeneratedArgument> createGeneratedArgumentList(Class[] types, Class[] argTypes, String methodName, List<Class> classHierarchy, ProviderResult[] argsProviderArr) {
         List<GeneratedArgument> argList = new ArrayList<>();
@@ -118,15 +52,13 @@ public class CollectUtil {
         return argList;
     }
 
-    public static SourceGenerator getSgInstance() {
+    private static SourceGenerator getSgInstance() {
         GenerationProperties props = GenerationPropertiesFactory.loadProps();
-        Set<String> excludedPackages = new HashSet<>(
-                Arrays.asList(props.getExcludedPackagesForDp())
-        );
+        Set<String> allowedPackages = new HashSet<>(Arrays.asList(props.getAllowedPackagesForDp()));
         String utilClass = props.getDataProviderClassPattern() + COMMON_UTIL_POSTFIX;
-        SourceGenerator sg = new SourceGenerator(TAB, excludedPackages, utilClass);
+        SourceGenerator sg = new SourceGenerator(TAB, allowedPackages, utilClass);
         sg.setExceptionWhenMaxODepth(false);
-        sg.setMaxObjectDepth(15);
+        sg.setMaxObjectDepth(10);
         for(String classname : props.getExternalExtensionClassNames()) {
             try {
                 Extension ext = (Extension) Class.forName(classname).newInstance();
@@ -138,6 +70,14 @@ public class CollectUtil {
         return sg;
     }
 
+    public static boolean excludedThreadName(String threadName) {
+        if(threadName == null) return false;
+        for (String p : GenerationPropertiesFactory.loadProps().getExcludedThreadNames()) {
+            if(threadName.contains(p)) return true;
+        }
+        return false;
+    }
+
     public static boolean allowedPackageForGeneration(String className) {
         if(className == null) return false;
         for (String p : GenerationPropertiesFactory.loadProps().getAllowedPackagesForTests()) {
@@ -146,37 +86,9 @@ public class CollectUtil {
         return false;
     }
 
-    private static boolean deniedPackage(StackTraceElement st) {
-        if (st == null) return true;
-        for (String ex : GenerationPropertiesFactory.loadProps().getExcludedPackagesForTraceCollect()) {
-            if(st.getClassName().startsWith(ex)) return true;
-        }
-        return false;
-    }
-
-    public static boolean deniedClass(Class clazz) {
-        List<String> hierarchy = new ArrayList<>();
-        hierarchy.addAll(getClassHierarchyStr(clazz));
-        hierarchy.addAll(getInterfacesHierarchyStr(clazz));
-        for (String c : GenerationPropertiesFactory.loadProps().getAllowedClassesForTraceCollect()) {
-            for (String h : hierarchy) {
-                if (h.startsWith(c)) return false;
-            }
-        }
-        return true;
-    }
-
     public static boolean deniedMethod(String methodName) {
         for (String m : DENIED_METHODS) {
             if(methodName.startsWith(m)) return true;
-        }
-        return false;
-    }
-
-    private static boolean deniedClassAndMethod(StackTraceElement st) {
-        if(st == null) return true;
-        for (String m : DENIED_METHOD_SYMBOLS) {
-            if(clearAspectMethod(st.getMethodName()).contains(m) || st.getClassName().contains(m)) return true;
         }
         return false;
     }
@@ -188,17 +100,11 @@ public class CollectUtil {
         return false;
     }
 
-    private static String getMethodKey(String className, String method, String threadName) {
+    public static String getMethodKey(String className, String method, String threadName) {
         return threadName + "_" + className + "_" + method;
     }
 
-    private static String getMethodKey(StackTraceElement st, String threadName) {
-        String className = st.getClassName();
-        String method = clearAspectMethod(st.getMethodName());
-        return getMethodKey(className, method, threadName);
-    }
-
-    public static String createMethodKey(JoinPoint joinPoint, String threadName) {
+    private static String createMethodKey(JoinPoint joinPoint, String threadName) {
         String joinClass = joinPoint.getSourceLocation().getWithinType().getName();
         String joinMethod = joinPoint.getSignature().getName();
         return getMethodKey(joinClass, joinMethod, threadName);
@@ -235,21 +141,15 @@ public class CollectUtil {
         }
     }
 
-    public static MethodCallInfo createMethodCallInfo(JoinPoint joinPoint, Object ret, int ownArgsHashCode, TraceAnalyzeDto traceAnalyzeDto) {
+    public static MethodCallInfo createMethodCallInfo(JoinPoint joinPoint, ProviderResult[] argsProviders, Object ret, int ownArgsHashCode, TraceAnalyzeDto traceAnalyzeDto, String threadName) {
         MethodCallInfo result = new MethodCallInfo();
 
-        Object[] args = joinPoint.getArgs();
-        String threadName = Thread.currentThread().getName();
-
-        ProviderResult[] argsProviders = new ProviderResult[args.length];
-        for (int i = 0; i < args.length; i++) {
-            argsProviders[i] = SG.createDataProviderMethod(args[i]);
-        }
         result.setArgsProviders(argsProviders);
 
         Class[] parameterTypes = getParameterTypes(joinPoint);
         result.setParameterTypes(parameterTypes);
 
+        Object[] args = joinPoint.getArgs();
         Class[] argTypes = new Class[args.length];
         for (int i = 0; i < args.length; i++) {
             argTypes[i] = args[i] != null ? args[i].getClass() : parameterTypes[i];
