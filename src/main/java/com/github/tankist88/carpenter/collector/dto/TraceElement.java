@@ -1,4 +1,4 @@
-package org.carpenter.collector.dto;
+package com.github.tankist88.carpenter.collector.dto;
 
 import java.io.Serializable;
 

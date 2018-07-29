@@ -1,7 +1,7 @@
-package org.carpenter.collector.dto;
+package com.github.tankist88.carpenter.collector.dto;
 
-import org.carpenter.core.dto.trace.TraceAnalyzeDto;
-import org.object2source.dto.ProviderResult;
+import com.github.tankist88.carpenter.core.dto.trace.TraceAnalyzeDto;
+import com.github.tankist88.object2source.dto.ProviderResult;
 
 public class MethodCallInfo {
     private String methodName;

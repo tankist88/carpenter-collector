@@ -1,4 +1,4 @@
-package org.carpenter.collector.util;
+package com.github.tankist88.carpenter.collector.util;
 
 import org.testng.annotations.Test;
 

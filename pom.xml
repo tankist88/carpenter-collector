@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.carpenter</groupId>
+    <groupId>com.github.tankist88</groupId>
     <artifactId>carpenter-collector</artifactId>
     <version>0.0.1-SNAPSHOT</version>
 
@@ -40,12 +40,12 @@
             <version>1.11</version>
         </dependency>
         <dependency>
-            <groupId>org.object2source</groupId>
+            <groupId>com.github.tankist88</groupId>
             <artifactId>object2source</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>org.carpenter</groupId>
+            <groupId>com.github.tankist88</groupId>
             <artifactId>carpenter-core</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>

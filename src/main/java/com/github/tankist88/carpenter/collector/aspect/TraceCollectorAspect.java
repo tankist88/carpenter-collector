@@ -1,41 +1,41 @@
-package org.carpenter.collector.aspect;
+package com.github.tankist88.carpenter.collector.aspect;
 
+import com.github.tankist88.carpenter.collector.dto.MethodCallInfo;
+import com.github.tankist88.carpenter.collector.dto.TraceElement;
+import com.github.tankist88.carpenter.collector.util.ArgsHashCodeHolder;
+import com.github.tankist88.carpenter.core.dto.argument.GeneratedArgument;
+import com.github.tankist88.carpenter.core.dto.trace.TraceAnalyzeDto;
+import com.github.tankist88.carpenter.core.dto.unit.method.MethodCallTraceInfo;
+import com.github.tankist88.object2source.dto.ProviderResult;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
-import org.carpenter.collector.dto.MethodCallInfo;
-import org.carpenter.collector.dto.TraceElement;
-import org.carpenter.collector.util.ArgsHashCodeHolder;
-import org.carpenter.core.dto.argument.GeneratedArgument;
-import org.carpenter.core.dto.trace.TraceAnalyzeDto;
-import org.carpenter.core.dto.unit.method.MethodCallTraceInfo;
-import org.object2source.dto.ProviderResult;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static org.carpenter.collector.util.CollectUtil.*;
-import static org.carpenter.core.util.ConvertUtil.toServiceProperties;
-import static org.object2source.util.AssigmentUtil.hasZeroArgConstructor;
-import static org.object2source.util.GenerationUtil.*;
+import static com.github.tankist88.carpenter.collector.util.CollectUtil.*;
+import static com.github.tankist88.carpenter.core.util.ConvertUtil.toServiceProperties;
+import static com.github.tankist88.object2source.util.AssigmentUtil.hasZeroArgConstructor;
+import static com.github.tankist88.object2source.util.GenerationUtil.*;
 
 @Aspect
 public class TraceCollectorAspect {
     private static final ExecutorService EXECUTOR_SERVICE = Executors.newFixedThreadPool(50);
 
-    @Pointcut("execution(* org.carpenter.collector..*(..))")
+    @Pointcut("execution(* com.github.tankist88.carpenter.collector..*(..))")
     public void thisLib() {
     }
 
-    @Pointcut("execution(* org.carpenter.core..*(..))")
+    @Pointcut("execution(* com.github.tankist88.carpenter.core..*(..))")
     public void thisCoreLib() {
     }
 
-    @Pointcut("execution(* org.object2source..*(..))")
+    @Pointcut("execution(* com.github.tankist88.object2source..*(..))")
     public void object2source() {
     }
 

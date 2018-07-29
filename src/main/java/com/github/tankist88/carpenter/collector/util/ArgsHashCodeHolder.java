@@ -1,6 +1,6 @@
-package org.carpenter.collector.util;
+package com.github.tankist88.carpenter.collector.util;
 
-import org.carpenter.collector.dto.TraceElement;
+import com.github.tankist88.carpenter.collector.dto.TraceElement;
 
 import java.util.Stack;
 
