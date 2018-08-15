@@ -46,7 +46,10 @@ public class CollectUtil {
             }
             genArg.setInterfacesHierarchy(getInterfacesHierarchyStr(type));
             genArg.setAnonymousClass(getLastClassShort(type.getName()).matches("\\d+"));
-            genArg.setNearestInstantAbleClass(genArg.isAnonymousClass() ? getFirstPublicType(type).getName() : type.getName());
+            genArg.setNearestInstantAbleClass(
+                    genArg.isAnonymousClass() || !Modifier.isPublic(type.getModifiers())
+                            ? getFirstPublicType(type).getName()
+                            : type.getName());
             argList.add(genArg);
         }
         return argList;

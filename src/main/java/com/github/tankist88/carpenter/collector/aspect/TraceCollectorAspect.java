@@ -13,6 +13,7 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 
+import java.lang.reflect.Modifier;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -141,7 +142,10 @@ public class TraceCollectorAspect {
                     GeneratedArgument returnValue = new GeneratedArgument(info.getRetType().getName(), info.getReturnProvider());
                     returnValue.setInterfacesHierarchy(getInterfacesHierarchyStr(info.getRetType()));
                     returnValue.setAnonymousClass(getLastClassShort(info.getRetType().getName()).matches("\\d+"));
-                    returnValue.setNearestInstantAbleClass(returnValue.isAnonymousClass() ? getFirstPublicType(info.getRetType()).getName() : info.getRetType().getName());
+                    returnValue.setNearestInstantAbleClass(
+                            returnValue.isAnonymousClass() || !Modifier.isPublic(info.getRetType().getModifiers())
+                                    ? getFirstPublicType(info.getRetType()).getName()
+                                    : info.getRetType().getName());
 
                     targetMethod.setReturnArg(returnValue);
                     targetMethod.setCallTime(System.nanoTime());
