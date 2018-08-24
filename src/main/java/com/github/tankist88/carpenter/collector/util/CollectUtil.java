@@ -33,23 +33,28 @@ public class CollectUtil {
 
     public static final SourceGenerator SG = getSgInstance();
 
+    public static GeneratedArgument createGeneratedArgument(Class clazz, ProviderResult provider) {
+        GeneratedArgument ga = new GeneratedArgument(clazz.getName(), provider);
+        ga.setInterfacesHierarchy(getInterfacesHierarchyStr(clazz));
+        ga.setAnonymousClass(getLastClassShort(clazz.getName()).matches("\\d+"));
+        ga.setNearestInstantAbleClass(
+                ga.isAnonymousClass() || !Modifier.isPublic(clazz.getModifiers())
+                        ? getFirstPublicType(clazz).getName()
+                        : clazz.getName());
+        return ga;
+    }
+
     public static List<GeneratedArgument> createGeneratedArgumentList(Class[] types, Class[] argTypes, String methodName, List<Class> classHierarchy, ProviderResult[] argsProviderArr) {
         List<GeneratedArgument> argList = new ArrayList<>();
         for (int i = 0; i < argTypes.length; i++) {
             Class type = argTypes[i];
             ProviderResult providerResult = !Modifier.isPrivate(type.getModifiers()) ? argsProviderArr[i] : null;
-            GeneratedArgument genArg = new GeneratedArgument(type.getName(), providerResult);
+            GeneratedArgument genArg = createGeneratedArgument(type, providerResult);
             try {
                 genArg.setGenericString(getMethodArgGenericTypeStr(classHierarchy, methodName, i, types));
             } catch (NoSuchMethodException e) {
                 genArg.setGenericString(null);
             }
-            genArg.setInterfacesHierarchy(getInterfacesHierarchyStr(type));
-            genArg.setAnonymousClass(getLastClassShort(type.getName()).matches("\\d+"));
-            genArg.setNearestInstantAbleClass(
-                    genArg.isAnonymousClass() || !Modifier.isPublic(type.getModifiers())
-                            ? getFirstPublicType(type).getName()
-                            : type.getName());
             argList.add(genArg);
         }
         return argList;
@@ -81,7 +86,7 @@ public class CollectUtil {
         return false;
     }
 
-    public static boolean allowedPackageForGeneration(String className) {
+    public static boolean allowedPackageForGen(String className) {
         if(className == null) return false;
         for (String p : GenerationPropertiesFactory.loadProps().getAllowedPackagesForTests()) {
             if(className.startsWith(p)) return true;
@@ -144,7 +149,7 @@ public class CollectUtil {
         }
     }
 
-    public static MethodCallInfo createMethodCallInfo(JoinPoint joinPoint, ProviderResult[] argsProviders, Object ret, int ownArgsHashCode, TraceAnalyzeDto traceAnalyzeDto, String threadName) {
+    public static MethodCallInfo createMethodCallInfo(JoinPoint joinPoint, ProviderResult[] argsProviders, Object ret, int ownArgsHashCode, TraceAnalyzeDto traceAnalyzeDto, String threadName, ProviderResult targetProvider) {
         MethodCallInfo result = new MethodCallInfo();
 
         result.setArgsProviders(argsProviders);
@@ -169,6 +174,7 @@ public class CollectUtil {
         result.setRetType(getReturnType(joinPoint));
         result.setReturnProvider(SG.createDataProviderMethod(ret));
         result.setTraceAnalyze(traceAnalyzeDto);
+        result.setTargetProvider(targetProvider);
 
         return result;
     }

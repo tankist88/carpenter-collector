@@ -3,7 +3,6 @@ package com.github.tankist88.carpenter.collector.aspect;
 import com.github.tankist88.carpenter.collector.dto.MethodCallInfo;
 import com.github.tankist88.carpenter.collector.dto.TraceElement;
 import com.github.tankist88.carpenter.collector.util.ArgsHashCodeHolder;
-import com.github.tankist88.carpenter.core.dto.argument.GeneratedArgument;
 import com.github.tankist88.carpenter.core.dto.trace.TraceAnalyzeDto;
 import com.github.tankist88.carpenter.core.dto.unit.method.MethodCallTraceInfo;
 import com.github.tankist88.object2source.dto.ProviderResult;
@@ -13,7 +12,6 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 
-import java.lang.reflect.Modifier;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
@@ -70,11 +68,15 @@ public class TraceCollectorAspect {
 
         TraceElement callerTraceElement = null;
         ProviderResult[] argsProviders = null;
+        ProviderResult targetProvider = null;
 
         if (!skip) {
             String joinClass = getJoinClass(pjp).getName();
             callerTraceElement = ArgsHashCodeHolder.peek();
-            if (allowedPackageForGeneration(joinClass) || allowedPackageForGeneration(callerTraceElement.getClassName())) {
+            if (allowedPackageForGen(joinClass) || allowedPackageForGen(callerTraceElement.getClassName())) {
+                if (pjp.getTarget() != null) {
+                    targetProvider = SG.createFillObjectMethod(pjp.getTarget());
+                }
                 Object[] args = pjp.getArgs();
                 argsProviders = new ProviderResult[args.length];
                 for (int i = 0; i < args.length; i++) {
@@ -86,7 +88,7 @@ public class TraceCollectorAspect {
 
         Object ret = pjp.proceed();
 
-        if (!skip) logMethodCall(pjp, callerTraceElement, argsProviders, ret);
+        if (!skip) logMethodCall(pjp, callerTraceElement, argsProviders, ret, targetProvider);
 
         return ret;
     }
@@ -103,7 +105,7 @@ public class TraceCollectorAspect {
         ArgsHashCodeHolder.put(new TraceElement(Objects.hash(joinPoint.getArgs()), joinClass, joinMethod));
     }
 
-    private void logMethodCall(JoinPoint joinPoint, TraceElement callerTraceElement, ProviderResult[] argsProviders, Object ret) {
+    private void logMethodCall(JoinPoint joinPoint, TraceElement callerTraceElement, ProviderResult[] argsProviders, Object ret, ProviderResult targetProvider) {
         int ownArgsHashCode = ArgsHashCodeHolder.pop().getArgsHashCode();
         if (argsProviders != null) {
             String threadName = Thread.currentThread().getName();
@@ -115,7 +117,7 @@ public class TraceCollectorAspect {
             traceAnalyzeDto.setUpLevelElementKey(getMethodKey(callerClassName, callerMethodName, callerThreadKey));
             traceAnalyzeDto.setUpLevelElementClassName(callerTraceElement.getClassName());
 
-            final MethodCallInfo info = createMethodCallInfo(joinPoint, argsProviders, ret, ownArgsHashCode, traceAnalyzeDto, threadName);
+            final MethodCallInfo info = createMethodCallInfo(joinPoint, argsProviders, ret, ownArgsHashCode, traceAnalyzeDto, threadName, targetProvider);
             Runnable callProcessor = new Runnable() {
                 @Override
                 public void run() {
@@ -126,7 +128,13 @@ public class TraceCollectorAspect {
                     targetMethod.setDeclaringTypeName(info.getDeclaringTypeName());
                     targetMethod.setUnitName(info.getMethodName());
                     targetMethod.setMemberClass(info.getClazz().isMemberClass());
-                    targetMethod.setArguments(createGeneratedArgumentList(info.getParameterTypes(), info.getArgTypes(), info.getMethodName(), classHierarchy, info.getArgsProviders()));
+                    targetMethod.setArguments(
+                            createGeneratedArgumentList(
+                                    info.getParameterTypes(),
+                                    info.getArgTypes(),
+                                    info.getMethodName(),
+                                    classHierarchy,
+                                    info.getArgsProviders()));
                     targetMethod.setClassModifiers(info.getClazz().getModifiers());
                     targetMethod.setMethodModifiers(info.getMethodModifiers());
                     targetMethod.setVoidMethod(info.getRetType().equals(Void.TYPE));
@@ -138,19 +146,15 @@ public class TraceCollectorAspect {
                     // технические поля
                     targetMethod.setKey(info.getMethodKey());
                     targetMethod.setTraceAnalyzeData(info.getTraceAnalyze());
-
-                    GeneratedArgument returnValue = new GeneratedArgument(info.getRetType().getName(), info.getReturnProvider());
-                    returnValue.setInterfacesHierarchy(getInterfacesHierarchyStr(info.getRetType()));
-                    returnValue.setAnonymousClass(getLastClassShort(info.getRetType().getName()).matches("\\d+"));
-                    returnValue.setNearestInstantAbleClass(
-                            returnValue.isAnonymousClass() || !Modifier.isPublic(info.getRetType().getModifiers())
-                                    ? getFirstPublicType(info.getRetType()).getName()
-                                    : info.getRetType().getName());
-
-                    targetMethod.setReturnArg(returnValue);
+                    targetMethod.setTargetObj(createGeneratedArgument(info.getClazz(), info.getTargetProvider()));
+                    targetMethod.setReturnArg(createGeneratedArgument(info.getRetType(), info.getReturnProvider()));
                     targetMethod.setCallTime(System.nanoTime());
 
-                    saveObjectDump(targetMethod, info.getMethodKey(), info.getClazz().getName(), info.getTraceAnalyze().getUpLevelElementKey());
+                    saveObjectDump(
+                            targetMethod,
+                            info.getMethodKey(),
+                            info.getClazz().getName(),
+                            info.getTraceAnalyze().getUpLevelElementKey());
                 }
             };
             EXECUTOR_SERVICE.submit(callProcessor);

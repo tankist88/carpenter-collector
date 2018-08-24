@@ -15,6 +15,7 @@ public class MethodCallInfo {
     private Class[] argTypes;
     private int methodModifiers;
     private String methodKey;
+    private ProviderResult targetProvider;
 
     public String getMethodName() {
         return methodName;
@@ -102,5 +103,13 @@ public class MethodCallInfo {
 
     public void setMethodKey(String methodKey) {
         this.methodKey = methodKey;
+    }
+
+    public ProviderResult getTargetProvider() {
+        return targetProvider;
+    }
+
+    public void setTargetProvider(ProviderResult targetProvider) {
+        this.targetProvider = targetProvider;
     }
 }
