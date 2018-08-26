@@ -83,6 +83,7 @@ public class TraceCollectorAspect {
             callerTraceElement = ArgsHashCodeHolder.peek();
             if (allowedPackageForGen(joinClass) || allowedPackageForGen(callerTraceElement.getClassName())) {
                 if (pjp.getTarget() != null) {
+                    // Target object can not be, for example for static calls
                     targetProvider = SG.createFillObjectMethod(pjp.getTarget());
                 }
                 Object[] args = pjp.getArgs();
@@ -122,6 +123,7 @@ public class TraceCollectorAspect {
     ) {
         int ownArgsHashCode = ArgsHashCodeHolder.pop().getArgsHashCode();
         if (argsProviders != null) {
+            // if argsProviders presented, will be save call info, otherwise not allowed method call for save
             String threadName = Thread.currentThread().getName();
             String callerClassName = callerTraceElement.getClassName();
             String callerMethodName = callerTraceElement.getMethodName();
@@ -130,7 +132,6 @@ public class TraceCollectorAspect {
             TraceAnalyzeDto traceAnalyzeDto = new TraceAnalyzeDto();
             traceAnalyzeDto.setUpLevelElementKey(getMethodKey(callerClassName, callerMethodName, callerThreadKey));
             traceAnalyzeDto.setUpLevelElementClassName(callerTraceElement.getClassName());
-
             final MethodCallInfo info = createMethodCallInfo(
                     joinPoint,
                     argsProviders,
