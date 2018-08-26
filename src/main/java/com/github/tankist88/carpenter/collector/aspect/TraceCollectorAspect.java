@@ -62,7 +62,15 @@ public class TraceCollectorAspect {
     public void callMethod() {
     }
 
-    @Around("callMethod() && !thisLib() && !thisCoreLib() && !object2source() && !java() && !javax() && !sun() && !comsun() && !aspectLibParts()")
+    @Around("callMethod() && " +
+            "!thisLib() && " +
+            "!thisCoreLib() && " +
+            "!object2source() && " +
+            "!java() && " +
+            "!javax() && " +
+            "!sun() && " +
+            "!comsun() && " +
+            "!aspectLibParts()")
     public Object aroundMethod(ProceedingJoinPoint pjp) throws Throwable {
         boolean skip = isSkip(pjp);
 
@@ -105,7 +113,13 @@ public class TraceCollectorAspect {
         ArgsHashCodeHolder.put(new TraceElement(Objects.hash(joinPoint.getArgs()), joinClass, joinMethod));
     }
 
-    private void logMethodCall(JoinPoint joinPoint, TraceElement callerTraceElement, ProviderResult[] argsProviders, Object ret, ProviderResult targetProvider) {
+    private void logMethodCall(
+            JoinPoint joinPoint,
+            TraceElement callerTraceElement,
+            ProviderResult[] argsProviders,
+            Object ret,
+            ProviderResult targetProvider
+    ) {
         int ownArgsHashCode = ArgsHashCodeHolder.pop().getArgsHashCode();
         if (argsProviders != null) {
             String threadName = Thread.currentThread().getName();
@@ -117,12 +131,18 @@ public class TraceCollectorAspect {
             traceAnalyzeDto.setUpLevelElementKey(getMethodKey(callerClassName, callerMethodName, callerThreadKey));
             traceAnalyzeDto.setUpLevelElementClassName(callerTraceElement.getClassName());
 
-            final MethodCallInfo info = createMethodCallInfo(joinPoint, argsProviders, ret, ownArgsHashCode, traceAnalyzeDto, threadName, targetProvider);
+            final MethodCallInfo info = createMethodCallInfo(
+                    joinPoint,
+                    argsProviders,
+                    ret,
+                    ownArgsHashCode,
+                    traceAnalyzeDto,
+                    threadName,
+                    targetProvider);
             Runnable callProcessor = new Runnable() {
                 @Override
                 public void run() {
                     List<Class> classHierarchy = getClassHierarchy(info.getClazz());
-
                     MethodCallTraceInfo targetMethod = new MethodCallTraceInfo();
                     targetMethod.setClassName(info.getClazz().getName());
                     targetMethod.setDeclaringTypeName(info.getDeclaringTypeName());
@@ -142,14 +162,11 @@ public class TraceCollectorAspect {
                     targetMethod.setInterfacesHierarchy(getInterfacesHierarchyStr(info.getClazz()));
                     targetMethod.setServiceFields(toServiceProperties(getAllFieldsOfClass(classHierarchy)));
                     targetMethod.setClassHasZeroArgConstructor(hasZeroArgConstructor(info.getClazz(), false));
-
-                    // технические поля
                     targetMethod.setKey(info.getMethodKey());
                     targetMethod.setTraceAnalyzeData(info.getTraceAnalyze());
                     targetMethod.setTargetObj(createGeneratedArgument(info.getClazz(), info.getTargetProvider()));
                     targetMethod.setReturnArg(createGeneratedArgument(info.getRetType(), info.getReturnProvider()));
                     targetMethod.setCallTime(System.nanoTime());
-
                     saveObjectDump(
                             targetMethod,
                             info.getMethodKey(),
