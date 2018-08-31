@@ -7,9 +7,9 @@ import static org.testng.AssertJUnit.assertEquals;
 public class CollectUtilTest {
     @Test
     public void clearAspectMethodTest() {
-        String method0 = CollectUtil.clearAspectMethod("init_aroundBody0");
+        String method0 = CollectUtils.clearAspectMethod("init_aroundBody0");
         assertEquals(method0, "init");
-        String method1 = CollectUtil.clearAspectMethod("init");
+        String method1 = CollectUtils.clearAspectMethod("init");
         assertEquals(method1, "init");
     }
 }

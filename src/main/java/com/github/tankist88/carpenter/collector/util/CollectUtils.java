@@ -4,59 +4,63 @@ import com.github.tankist88.carpenter.collector.dto.MethodCallInfo;
 import com.github.tankist88.carpenter.core.dto.argument.GeneratedArgument;
 import com.github.tankist88.carpenter.core.dto.trace.TraceAnalyzeDto;
 import com.github.tankist88.carpenter.core.property.GenerationProperties;
-import com.github.tankist88.carpenter.core.property.GenerationPropertiesFactory;
 import com.github.tankist88.object2source.SourceGenerator;
 import com.github.tankist88.object2source.dto.ProviderResult;
 import com.github.tankist88.object2source.extension.Extension;
-import org.apache.commons.codec.digest.DigestUtils;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.SerializationUtils;
 import org.aspectj.lang.JoinPoint;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import java.io.*;
 import java.lang.reflect.Modifier;
 import java.util.*;
 
-import static com.github.tankist88.carpenter.core.property.AbstractGenerationProperties.*;
+import static com.github.tankist88.carpenter.core.property.AbstractGenerationProperties.COMMON_UTIL_POSTFIX;
+import static com.github.tankist88.carpenter.core.property.AbstractGenerationProperties.TAB;
+import static com.github.tankist88.carpenter.core.property.GenerationPropertiesFactory.loadProps;
 import static com.github.tankist88.carpenter.core.util.TypeHelper.getMethodArgGenericTypeStr;
 import static com.github.tankist88.object2source.util.GenerationUtil.*;
 import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getParameterTypes;
 import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getReturnType;
 
-public class CollectUtil {
-    private static final Logger logger = LoggerFactory.getLogger(CollectUtil.class);
-
+public class CollectUtils {
     private static final String[] DENIED_METHODS = {"hashCode","equals","compare"};
     private static final String[] DENIED_METHOD_SYMBOLS = {"$"};
 
     public static final SourceGenerator SG = getSgInstance();
 
-    public static List<GeneratedArgument> createGeneratedArgumentList(Class[] types, Class[] argTypes, String methodName, List<Class> classHierarchy, ProviderResult[] argsProviderArr) {
+    public static GeneratedArgument createGeneratedArgument(Class clazz, ProviderResult provider) {
+        GeneratedArgument ga = new GeneratedArgument(clazz.getName(), provider);
+        ga.setInterfacesHierarchy(getInterfacesHierarchyStr(clazz));
+        ga.setAnonymousClass(getLastClassShort(clazz.getName()).matches("\\d+"));
+        ga.setNearestInstantAbleClass(
+                ga.isAnonymousClass() || !Modifier.isPublic(clazz.getModifiers())
+                        ? getFirstPublicType(clazz).getName()
+                        : clazz.getName());
+        return ga;
+    }
+
+    public static List<GeneratedArgument> createGeneratedArgumentList(
+            Class[] types,
+            Class[] argTypes,
+            String methodName,
+            List<Class> classHierarchy,
+            ProviderResult[] argsProviderArr
+    ) {
         List<GeneratedArgument> argList = new ArrayList<>();
         for (int i = 0; i < argTypes.length; i++) {
             Class type = argTypes[i];
             ProviderResult providerResult = !Modifier.isPrivate(type.getModifiers()) ? argsProviderArr[i] : null;
-            GeneratedArgument genArg = new GeneratedArgument(type.getName(), providerResult);
+            GeneratedArgument genArg = createGeneratedArgument(type, providerResult);
             try {
                 genArg.setGenericString(getMethodArgGenericTypeStr(classHierarchy, methodName, i, types));
             } catch (NoSuchMethodException e) {
                 genArg.setGenericString(null);
             }
-            genArg.setInterfacesHierarchy(getInterfacesHierarchyStr(type));
-            genArg.setAnonymousClass(getLastClassShort(type.getName()).matches("\\d+"));
-            genArg.setNearestInstantAbleClass(
-                    genArg.isAnonymousClass() || !Modifier.isPublic(type.getModifiers())
-                            ? getFirstPublicType(type).getName()
-                            : type.getName());
             argList.add(genArg);
         }
         return argList;
     }
 
     private static SourceGenerator getSgInstance() {
-        GenerationProperties props = GenerationPropertiesFactory.loadProps();
+        GenerationProperties props = loadProps();
         Set<String> allowedPackages = new HashSet<>(Arrays.asList(props.getAllowedPackagesForDp()));
         String utilClass = props.getDataProviderClassPattern() + COMMON_UTIL_POSTFIX;
         SourceGenerator sg = new SourceGenerator(TAB, allowedPackages, utilClass);
@@ -75,15 +79,15 @@ public class CollectUtil {
 
     public static boolean excludedThreadName(String threadName) {
         if(threadName == null) return false;
-        for (String p : GenerationPropertiesFactory.loadProps().getExcludedThreadNames()) {
+        for (String p : loadProps().getExcludedThreadNames()) {
             if(threadName.contains(p)) return true;
         }
         return false;
     }
 
-    public static boolean allowedPackageForGeneration(String className) {
+    public static boolean allowedPackageForGen(String className) {
         if(className == null) return false;
-        for (String p : GenerationPropertiesFactory.loadProps().getAllowedPackagesForTests()) {
+        for (String p : loadProps().getAllowedPackagesForTests()) {
             if(className.startsWith(p)) return true;
         }
         return false;
@@ -113,25 +117,6 @@ public class CollectUtil {
         return getMethodKey(joinClass, joinMethod, threadName);
     }
 
-    public static void saveObjectDump(Serializable object, String methodKey, String className, String upLevelKey) {
-        try {
-            String key = methodKey + "_" + upLevelKey;
-            String keyHash = DigestUtils.md5Hex(key);
-            String packageFileStruct = GenerationPropertiesFactory.loadProps().getObjectDumpDir() + "/" + getPackage(className).replaceAll("\\.", "/");
-            FileUtils.forceMkdir(new File(packageFileStruct));
-            File file = new File(packageFileStruct, keyHash + "." + OBJ_FILE_EXTENSION);
-            DataOutputStream dos = new DataOutputStream(new FileOutputStream(file));
-            byte[] bytes = SerializationUtils.serialize(object);
-            dos.writeInt(bytes.length);
-            dos.write(bytes);
-            dos.close();
-        } catch (IOException iex) {
-            String errorMsg = "Can't save object dump! " + iex.getMessage();
-            logger.error(errorMsg);
-            throw new IllegalStateException(errorMsg, iex);
-        }
-    }
-
     public static Class getJoinClass(JoinPoint joinPoint) {
         return joinPoint.getTarget() != null ? joinPoint.getTarget().getClass() : joinPoint.getSignature().getDeclaringType();
     }
@@ -144,7 +129,15 @@ public class CollectUtil {
         }
     }
 
-    public static MethodCallInfo createMethodCallInfo(JoinPoint joinPoint, ProviderResult[] argsProviders, Object ret, int ownArgsHashCode, TraceAnalyzeDto traceAnalyzeDto, String threadName) {
+    public static MethodCallInfo createMethodCallInfo(
+            JoinPoint joinPoint,
+            ProviderResult[] argsProviders,
+            Object ret,
+            int ownArgsHashCode,
+            TraceAnalyzeDto traceAnalyzeDto,
+            String threadName,
+            ProviderResult targetProvider
+    ) {
         MethodCallInfo result = new MethodCallInfo();
 
         result.setArgsProviders(argsProviders);
@@ -169,8 +162,8 @@ public class CollectUtil {
         result.setRetType(getReturnType(joinPoint));
         result.setReturnProvider(SG.createDataProviderMethod(ret));
         result.setTraceAnalyze(traceAnalyzeDto);
+        result.setTargetProvider(targetProvider);
 
         return result;
     }
 }
-
