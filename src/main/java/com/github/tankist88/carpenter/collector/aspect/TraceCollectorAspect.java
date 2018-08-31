@@ -17,14 +17,15 @@ import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static com.github.tankist88.carpenter.collector.util.CollectUtil.*;
+import static com.github.tankist88.carpenter.collector.util.CollectUtils.*;
+import static com.github.tankist88.carpenter.collector.util.DumpUtils.saveObjectDump;
 import static com.github.tankist88.carpenter.core.util.ConvertUtil.toServiceProperties;
 import static com.github.tankist88.object2source.util.AssigmentUtil.hasZeroArgConstructor;
 import static com.github.tankist88.object2source.util.GenerationUtil.*;
 
 @Aspect
 public class TraceCollectorAspect {
-    private static final ExecutorService EXECUTOR_SERVICE = Executors.newFixedThreadPool(50);
+    private static final ExecutorService EXECUTOR_SERVICE = Executors.newFixedThreadPool(55);
 
     @Pointcut("execution(* com.github.tankist88.carpenter.collector..*(..))")
     public void thisLib() {
@@ -140,42 +141,46 @@ public class TraceCollectorAspect {
                     traceAnalyzeDto,
                     threadName,
                     targetProvider);
-            Runnable callProcessor = new Runnable() {
-                @Override
-                public void run() {
-                    List<Class> classHierarchy = getClassHierarchy(info.getClazz());
-                    MethodCallTraceInfo targetMethod = new MethodCallTraceInfo();
-                    targetMethod.setClassName(info.getClazz().getName());
-                    targetMethod.setDeclaringTypeName(info.getDeclaringTypeName());
-                    targetMethod.setUnitName(info.getMethodName());
-                    targetMethod.setMemberClass(info.getClazz().isMemberClass());
-                    targetMethod.setArguments(
-                            createGeneratedArgumentList(
-                                    info.getParameterTypes(),
-                                    info.getArgTypes(),
-                                    info.getMethodName(),
-                                    classHierarchy,
-                                    info.getArgsProviders()));
-                    targetMethod.setClassModifiers(info.getClazz().getModifiers());
-                    targetMethod.setMethodModifiers(info.getMethodModifiers());
-                    targetMethod.setVoidMethod(info.getRetType().equals(Void.TYPE));
-                    targetMethod.setClassHierarchy(getClassHierarchyStr(classHierarchy));
-                    targetMethod.setInterfacesHierarchy(getInterfacesHierarchyStr(info.getClazz()));
-                    targetMethod.setServiceFields(toServiceProperties(getAllFieldsOfClass(classHierarchy)));
-                    targetMethod.setClassHasZeroArgConstructor(hasZeroArgConstructor(info.getClazz(), false));
-                    targetMethod.setKey(info.getMethodKey());
-                    targetMethod.setTraceAnalyzeData(info.getTraceAnalyze());
-                    targetMethod.setTargetObj(createGeneratedArgument(info.getClazz(), info.getTargetProvider()));
-                    targetMethod.setReturnArg(createGeneratedArgument(info.getRetType(), info.getReturnProvider()));
-                    targetMethod.setCallTime(System.nanoTime());
-                    saveObjectDump(
-                            targetMethod,
-                            info.getMethodKey(),
-                            info.getClazz().getName(),
-                            info.getTraceAnalyze().getUpLevelElementKey());
-                }
-            };
-            EXECUTOR_SERVICE.submit(callProcessor);
+            dumpMethodCallInfo(info);
         }
+    }
+
+    private void dumpMethodCallInfo(final MethodCallInfo info) {
+        Runnable callProcessor = new Runnable() {
+            @Override
+            public void run() {
+                List<Class> classHierarchy = getClassHierarchy(info.getClazz());
+                MethodCallTraceInfo targetMethod = new MethodCallTraceInfo();
+                targetMethod.setClassName(info.getClazz().getName());
+                targetMethod.setDeclaringTypeName(info.getDeclaringTypeName());
+                targetMethod.setUnitName(info.getMethodName());
+                targetMethod.setMemberClass(info.getClazz().isMemberClass());
+                targetMethod.setArguments(
+                        createGeneratedArgumentList(
+                                info.getParameterTypes(),
+                                info.getArgTypes(),
+                                info.getMethodName(),
+                                classHierarchy,
+                                info.getArgsProviders()));
+                targetMethod.setClassModifiers(info.getClazz().getModifiers());
+                targetMethod.setMethodModifiers(info.getMethodModifiers());
+                targetMethod.setVoidMethod(info.getRetType().equals(Void.TYPE));
+                targetMethod.setClassHierarchy(getClassHierarchyStr(classHierarchy));
+                targetMethod.setInterfacesHierarchy(getInterfacesHierarchyStr(info.getClazz()));
+                targetMethod.setServiceFields(toServiceProperties(getAllFieldsOfClass(classHierarchy)));
+                targetMethod.setClassHasZeroArgConstructor(hasZeroArgConstructor(info.getClazz(), false));
+                targetMethod.setKey(info.getMethodKey());
+                targetMethod.setTraceAnalyzeData(info.getTraceAnalyze());
+                targetMethod.setTargetObj(createGeneratedArgument(info.getClazz(), info.getTargetProvider()));
+                targetMethod.setReturnArg(createGeneratedArgument(info.getRetType(), info.getReturnProvider()));
+                targetMethod.setCallTime(System.nanoTime());
+                saveObjectDump(
+                        targetMethod,
+                        info.getMethodKey(),
+                        info.getClazz().getName(),
+                        info.getTraceAnalyze().getUpLevelElementKey());
+            }
+        };
+        EXECUTOR_SERVICE.submit(callProcessor);
     }
 }
