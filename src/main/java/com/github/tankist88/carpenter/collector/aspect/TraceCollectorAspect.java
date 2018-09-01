@@ -15,17 +15,19 @@ import org.aspectj.lang.annotation.Pointcut;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import static com.github.tankist88.carpenter.collector.util.CollectUtils.*;
 import static com.github.tankist88.carpenter.collector.util.DumpUtils.saveObjectDump;
+import static com.github.tankist88.carpenter.core.property.GenerationPropertiesFactory.loadProps;
 import static com.github.tankist88.carpenter.core.util.ConvertUtil.toServiceProperties;
 import static com.github.tankist88.object2source.util.AssigmentUtil.hasZeroArgConstructor;
 import static com.github.tankist88.object2source.util.GenerationUtil.*;
+import static java.util.concurrent.Executors.newFixedThreadPool;
 
 @Aspect
 public class TraceCollectorAspect {
-    private static final ExecutorService EXECUTOR_SERVICE = Executors.newFixedThreadPool(55);
+    private static final ExecutorService EXECUTOR_SERVICE =
+            newFixedThreadPool(loadProps().getCollectorThreadPoolSize());
 
     @Pointcut("execution(* com.github.tankist88.carpenter.collector..*(..))")
     public void thisLib() {
