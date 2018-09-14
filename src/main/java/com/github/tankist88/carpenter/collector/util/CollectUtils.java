@@ -9,12 +9,15 @@ import com.github.tankist88.object2source.dto.ProviderResult;
 import com.github.tankist88.object2source.extension.Extension;
 import org.aspectj.lang.JoinPoint;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
 
 import static com.github.tankist88.carpenter.core.property.AbstractGenerationProperties.COMMON_UTIL_POSTFIX;
 import static com.github.tankist88.carpenter.core.property.AbstractGenerationProperties.TAB;
 import static com.github.tankist88.carpenter.core.property.GenerationPropertiesFactory.loadProps;
+import static com.github.tankist88.carpenter.core.util.TypeHelper.classListAsString;
 import static com.github.tankist88.carpenter.core.util.TypeHelper.getMethodArgGenericTypeStr;
 import static com.github.tankist88.object2source.util.GenerationUtil.*;
 import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getParameterTypes;
@@ -30,11 +33,18 @@ public class CollectUtils {
         GeneratedArgument ga = new GeneratedArgument(clazz.getName(), provider);
         ga.setInterfacesHierarchy(getInterfacesHierarchyStr(clazz));
         ga.setAnonymousClass(getLastClassShort(clazz.getName()).matches("\\d+"));
-        ga.setNearestInstantAbleClass(
-                ga.isAnonymousClass() || !Modifier.isPublic(clazz.getModifiers())
-                        ? getFirstPublicType(clazz).getName()
-                        : clazz.getName());
+        ga.setNearestInstantAbleClass(getNearestInstantAbleClass(clazz));
         return ga;
+    }
+
+    public static String getNearestInstantAbleClass(Class clazz) {
+        return  isAnonymousClass(clazz) || !Modifier.isPublic(clazz.getModifiers())
+                ? getFirstPublicType(clazz).getName()
+                : clazz.getName();
+    }
+
+    private static boolean isAnonymousClass(Class clazz) {
+        return getLastClassShort(clazz.getName()).matches("\\d+");
     }
 
     public static List<GeneratedArgument> createGeneratedArgumentList(
@@ -150,13 +160,11 @@ public class CollectUtils {
         for (int i = 0; i < args.length; i++) {
             argTypes[i] = args[i] != null ? args[i].getClass() : parameterTypes[i];
         }
-        result.setArgTypes(argTypes);
 
+        result.setArgTypes(argTypes);
         result.setClazz(getJoinClass(joinPoint));
         result.setDeclaringTypeName(joinPoint.getSignature().getDeclaringTypeName());
-
-        String threadKey = threadName + ownArgsHashCode;
-        result.setMethodKey(createMethodKey(joinPoint, threadKey));
+        result.setMethodKey(createMethodKey(joinPoint, threadName + ownArgsHashCode));
         result.setMethodModifiers(joinPoint.getSignature().getModifiers());
         result.setMethodName(joinPoint.getSignature().getName());
         result.setRetType(getReturnType(joinPoint));
@@ -165,5 +173,25 @@ public class CollectUtils {
         result.setTargetProvider(targetProvider);
 
         return result;
+    }
+
+    public static boolean isMaybeServiceClass(List<Class> classHierarchy) {
+        List<String> fieldTypeNames = new ArrayList<>();
+        for (Field f : getAllFieldsOfClass(classHierarchy)) {
+            fieldTypeNames.add(f.getType().getName());
+        }
+        for (Method m : getAllMethodsOfClass(classHierarchy)) {
+            if (m.getReturnType() == null) continue;
+            if (fieldTypeNames.contains(m.getReturnType().getName())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static String createClassGenericInfo(Class clazz) {
+        if (clazz.getGenericSuperclass() == null) return null;
+        List<Class> generics = getParameterizedTypes(clazz.getGenericSuperclass());
+        return generics.size() > 0 ? classListAsString(generics) : null;
     }
 }

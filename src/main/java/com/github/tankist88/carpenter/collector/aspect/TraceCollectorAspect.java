@@ -154,6 +154,8 @@ public class TraceCollectorAspect {
                 List<Class> classHierarchy = getClassHierarchy(info.getClazz());
                 MethodCallTraceInfo targetMethod = new MethodCallTraceInfo();
                 targetMethod.setClassName(info.getClazz().getName());
+                targetMethod.setNearestInstantAbleClass(getNearestInstantAbleClass(info.getClazz()));
+                targetMethod.setGenericString(createClassGenericInfo(info.getClazz()));
                 targetMethod.setDeclaringTypeName(info.getDeclaringTypeName());
                 targetMethod.setUnitName(info.getMethodName());
                 targetMethod.setMemberClass(info.getClazz().isMemberClass());
@@ -170,6 +172,7 @@ public class TraceCollectorAspect {
                 targetMethod.setClassHierarchy(getClassHierarchyStr(classHierarchy));
                 targetMethod.setInterfacesHierarchy(getInterfacesHierarchyStr(info.getClazz()));
                 targetMethod.setServiceFields(toServiceProperties(getAllFieldsOfClass(classHierarchy)));
+                targetMethod.setMaybeServiceClass(isMaybeServiceClass(classHierarchy));
                 targetMethod.setClassHasZeroArgConstructor(hasZeroArgConstructor(info.getClazz(), false));
                 targetMethod.setKey(info.getMethodKey());
                 targetMethod.setTraceAnalyzeData(info.getTraceAnalyze());
