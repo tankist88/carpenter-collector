@@ -12,14 +12,17 @@ import org.aspectj.lang.JoinPoint;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static com.github.tankist88.carpenter.core.property.AbstractGenerationProperties.COMMON_UTIL_POSTFIX;
 import static com.github.tankist88.carpenter.core.property.AbstractGenerationProperties.TAB;
 import static com.github.tankist88.carpenter.core.property.GenerationPropertiesFactory.loadProps;
-import static com.github.tankist88.carpenter.core.util.TypeHelper.classListAsString;
 import static com.github.tankist88.carpenter.core.util.TypeHelper.getMethodArgGenericTypeStr;
 import static com.github.tankist88.object2source.util.GenerationUtil.*;
+import static java.util.Arrays.asList;
 import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getParameterTypes;
 import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getReturnType;
 
@@ -71,7 +74,7 @@ public class CollectUtils {
 
     private static SourceGenerator getSgInstance() {
         GenerationProperties props = loadProps();
-        Set<String> allowedPackages = new HashSet<>(Arrays.asList(props.getAllowedPackagesForDp()));
+        Set<String> allowedPackages = new HashSet<>(asList(props.getAllowedPackagesForDp()));
         String utilClass = props.getDataProviderClassPattern() + COMMON_UTIL_POSTFIX;
         SourceGenerator sg = new SourceGenerator(TAB, allowedPackages, utilClass);
         sg.setExceptionWhenMaxODepth(false);
@@ -187,11 +190,5 @@ public class CollectUtils {
             }
         }
         return true;
-    }
-
-    public static String createClassGenericInfo(Class clazz) {
-        if (clazz.getGenericSuperclass() == null) return null;
-        List<Class> generics = getParameterizedTypes(clazz.getGenericSuperclass());
-        return generics.size() > 0 ? classListAsString(generics) : null;
     }
 }

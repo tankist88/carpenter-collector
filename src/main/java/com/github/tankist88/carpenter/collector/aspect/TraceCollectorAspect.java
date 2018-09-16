@@ -155,7 +155,6 @@ public class TraceCollectorAspect {
                 MethodCallTraceInfo targetMethod = new MethodCallTraceInfo();
                 targetMethod.setClassName(info.getClazz().getName());
                 targetMethod.setNearestInstantAbleClass(getNearestInstantAbleClass(info.getClazz()));
-                targetMethod.setGenericString(createClassGenericInfo(info.getClazz()));
                 targetMethod.setDeclaringTypeName(info.getDeclaringTypeName());
                 targetMethod.setUnitName(info.getMethodName());
                 targetMethod.setMemberClass(info.getClazz().isMemberClass());

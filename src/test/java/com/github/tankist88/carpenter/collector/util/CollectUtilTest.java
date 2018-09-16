@@ -12,15 +12,4 @@ public class CollectUtilTest {
         String method1 = CollectUtils.clearAspectMethod("init");
         assertEquals(method1, "init");
     }
-
-    private class TestA<T> {
-    }
-    private class TestB extends TestA<Integer> {
-    }
-
-    @Test
-    public void createClassGenericInfoTest() {
-        TestB testB = new TestB();
-        assertEquals(CollectUtils.createClassGenericInfo(testB.getClass()), "java.lang.Integer");
-    }
 }
