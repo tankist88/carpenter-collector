@@ -6,6 +6,7 @@ import com.github.tankist88.carpenter.collector.util.ArgsHashCodeHolder;
 import com.github.tankist88.carpenter.core.dto.trace.TraceAnalyzeDto;
 import com.github.tankist88.carpenter.core.dto.unit.method.MethodCallTraceInfo;
 import com.github.tankist88.object2source.dto.ProviderResult;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
@@ -13,7 +14,6 @@ import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 
 import static com.github.tankist88.carpenter.collector.util.CollectUtils.*;
@@ -21,6 +21,7 @@ import static com.github.tankist88.carpenter.collector.util.DumpUtils.saveObject
 import static com.github.tankist88.carpenter.core.property.GenerationPropertiesFactory.loadProps;
 import static com.github.tankist88.carpenter.core.util.ConvertUtil.toServiceProperties;
 import static com.github.tankist88.object2source.util.AssigmentUtil.hasZeroArgConstructor;
+import static com.github.tankist88.object2source.util.ExtensionUtil.isDynamicProxy;
 import static com.github.tankist88.object2source.util.GenerationUtil.*;
 import static java.util.concurrent.Executors.newFixedThreadPool;
 
@@ -80,27 +81,34 @@ public class TraceCollectorAspect {
         TraceElement callerTraceElement = null;
         ProviderResult[] argsProviders = null;
         ProviderResult targetProvider = null;
+        boolean isDynamicProxy = false;
 
         if (!skip) {
-            String joinClass = getJoinClass(pjp).getName();
+            Class joinClass = getJoinClass(pjp);
+            String joinClassName = joinClass.getName();
             callerTraceElement = ArgsHashCodeHolder.peek();
-            if (allowedPackageForGen(joinClass) || allowedPackageForGen(callerTraceElement.getClassName())) {
-                if (pjp.getTarget() != null) {
-                    // Target object can not be, for example for static calls
-                    targetProvider = SG.createFillObjectMethod(pjp.getTarget());
-                }
-                Object[] args = pjp.getArgs();
-                argsProviders = new ProviderResult[args.length];
-                for (int i = 0; i < args.length; i++) {
-                    argsProviders[i] = SG.createDataProviderMethod(args[i]);
+            if (allowedPackageForGen(joinClassName) || allowedPackageForGen(callerTraceElement.getClassName())) {
+                isDynamicProxy = isDynamicProxy(joinClass);
+                if (!isDynamicProxy) {
+                    if (pjp.getTarget() != null) {
+                        // Target object can not be, for example for static calls
+                        targetProvider = SG.createFillObjectMethod(pjp.getTarget());
+                    }
+                    Object[] args = pjp.getArgs();
+                    argsProviders = new ProviderResult[args.length];
+                    for (int i = 0; i < args.length; i++) {
+                        argsProviders[i] = SG.createDataProviderMethod(args[i]);
+                    }
                 }
             }
-            putArgsHashCode(pjp);
+            if (!isDynamicProxy) {
+                putArgsHashCode(pjp);
+            }
         }
 
         Object ret = pjp.proceed();
 
-        if (!skip) logMethodCall(pjp, callerTraceElement, argsProviders, ret, targetProvider);
+        if (!skip && !isDynamicProxy) logMethodCall(pjp, callerTraceElement, argsProviders, ret, targetProvider);
 
         return ret;
     }
@@ -114,7 +122,15 @@ public class TraceCollectorAspect {
     private void putArgsHashCode(JoinPoint joinPoint) {
         String joinMethod = joinPoint.getSignature().getName();
         String joinClass = joinPoint.getSourceLocation().getWithinType().getName();
-        ArgsHashCodeHolder.put(new TraceElement(Objects.hash(joinPoint.getArgs()), joinClass, joinMethod));
+        HashCodeBuilder hashCodeBuilder = new HashCodeBuilder();
+        for (Object o : joinPoint.getArgs()) {
+            if (o != null) {
+                hashCodeBuilder.append(HashCodeBuilder.reflectionHashCode(o));
+            } else {
+                hashCodeBuilder.append(0);
+            }
+        }
+        ArgsHashCodeHolder.put(new TraceElement(hashCodeBuilder.toHashCode(), joinClass, joinMethod));
     }
 
     private void logMethodCall(

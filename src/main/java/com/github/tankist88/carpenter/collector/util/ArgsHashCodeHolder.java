@@ -7,12 +7,12 @@ import java.util.Stack;
 public class ArgsHashCodeHolder {
     private static final int MAX_STACK_DEPTH = 150;
 
-    private static final ThreadLocal<Stack<TraceElement>> threadLocalScope = new ThreadLocal<>();
+    private static final ThreadLocal<Stack<TraceElement>> threadLocalScope = new ThreadLocal<Stack<TraceElement>>();
 
     private static Stack<TraceElement> getStack() {
         Stack<TraceElement> stack = threadLocalScope.get();
         if (stack == null) {
-            stack = new Stack<>();
+            stack = new Stack<TraceElement>();
             threadLocalScope.set(stack);
         }
         return stack;

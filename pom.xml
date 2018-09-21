@@ -39,6 +39,10 @@
         </developer>
     </developers>
 
+    <properties>
+        <java.version>1.6</java.version>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -48,11 +52,6 @@
         <dependency>
             <groupId>org.aspectj</groupId>
             <artifactId>aspectjrt</artifactId>
-            <version>1.8.2</version>
-        </dependency>
-        <dependency>
-            <groupId>org.aspectj</groupId>
-            <artifactId>aspectjweaver</artifactId>
             <version>1.8.2</version>
         </dependency>
         <dependency>
@@ -68,7 +67,7 @@
         <dependency>
             <groupId>com.github.tankist88</groupId>
             <artifactId>carpenter-core</artifactId>
-            <version>0.0.5</version>
+            <version>0.0.6-SNAPSHOT</version>
         </dependency>
 
         <dependency>
@@ -131,8 +130,8 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <source>1.7</source>
-                    <target>1.7</target>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
                     <encoding>utf-8</encoding>
                 </configuration>
             </plugin>
@@ -202,8 +201,8 @@
                         </goals>
                         <configuration>
                             <aspectDirectory>src/main/java</aspectDirectory>
-                            <source>1.7</source>
-                            <target>1.7</target>
+                            <source>${java.version}</source>
+                            <target>${java.version}</target>
                             <showWeaveInfo>true</showWeaveInfo>
                             <verbose>true</verbose>
                             <complianceLevel>1.7</complianceLevel>

@@ -57,7 +57,7 @@ public class CollectUtils {
             List<Class> classHierarchy,
             ProviderResult[] argsProviderArr
     ) {
-        List<GeneratedArgument> argList = new ArrayList<>();
+        List<GeneratedArgument> argList = new ArrayList<GeneratedArgument>();
         for (int i = 0; i < argTypes.length; i++) {
             Class type = argTypes[i];
             ProviderResult providerResult = !Modifier.isPrivate(type.getModifiers()) ? argsProviderArr[i] : null;
@@ -74,7 +74,7 @@ public class CollectUtils {
 
     private static SourceGenerator getSgInstance() {
         GenerationProperties props = loadProps();
-        Set<String> allowedPackages = new HashSet<>(asList(props.getAllowedPackagesForDp()));
+        Set<String> allowedPackages = new HashSet<String>(asList(props.getAllowedPackagesForDp()));
         String utilClass = props.getDataProviderClassPattern() + COMMON_UTIL_POSTFIX;
         SourceGenerator sg = new SourceGenerator(TAB, allowedPackages, utilClass);
         sg.setExceptionWhenMaxODepth(false);
@@ -83,8 +83,8 @@ public class CollectUtils {
             try {
                 Extension ext = (Extension) Class.forName(classname).newInstance();
                 sg.registerExtension(ext);
-            } catch (ReflectiveOperationException reflEx) {
-                throw new IllegalStateException(reflEx);
+            } catch (Exception ex) {
+                throw new IllegalStateException(ex);
             }
         }
         return sg;
@@ -179,7 +179,7 @@ public class CollectUtils {
     }
 
     public static boolean isMaybeServiceClass(List<Class> classHierarchy) {
-        List<String> fieldTypeNames = new ArrayList<>();
+        List<String> fieldTypeNames = new ArrayList<String>();
         for (Field f : getAllFieldsOfClass(classHierarchy)) {
             fieldTypeNames.add(f.getType().getName());
         }
