@@ -22,6 +22,7 @@ import static com.github.tankist88.carpenter.core.property.GenerationPropertiesF
 import static com.github.tankist88.carpenter.core.util.ConvertUtil.toServiceProperties;
 import static com.github.tankist88.object2source.util.AssigmentUtil.hasZeroArgConstructor;
 import static com.github.tankist88.object2source.util.ExtensionUtil.isDynamicProxy;
+import static com.github.tankist88.object2source.util.ExtensionUtil.isInvocationHandler;
 import static com.github.tankist88.object2source.util.GenerationUtil.*;
 import static java.util.concurrent.Executors.newFixedThreadPool;
 
@@ -82,6 +83,7 @@ public class TraceCollectorAspect {
         ProviderResult[] argsProviders = null;
         ProviderResult targetProvider = null;
         boolean isDynamicProxy = false;
+        boolean isInvocationHandler = false;
 
         if (!skip) {
             Class joinClass = getJoinClass(pjp);
@@ -89,7 +91,8 @@ public class TraceCollectorAspect {
             callerTraceElement = ArgsHashCodeHolder.peek();
             if (allowedPackageForGen(joinClassName) || allowedPackageForGen(callerTraceElement.getClassName())) {
                 isDynamicProxy = isDynamicProxy(joinClass);
-                if (!isDynamicProxy) {
+                isInvocationHandler = isInvocationHandler(joinClass);
+                if (!isDynamicProxy && !isInvocationHandler) {
                     if (pjp.getTarget() != null) {
                         // Target object can not be, for example for static calls
                         targetProvider = SG.createFillObjectMethod(pjp.getTarget());
@@ -101,14 +104,16 @@ public class TraceCollectorAspect {
                     }
                 }
             }
-            if (!isDynamicProxy) {
+            if (!isDynamicProxy && !isInvocationHandler) {
                 putArgsHashCode(pjp);
             }
         }
 
         Object ret = pjp.proceed();
 
-        if (!skip && !isDynamicProxy) logMethodCall(pjp, callerTraceElement, argsProviders, ret, targetProvider);
+        if (!skip && !isDynamicProxy && !isInvocationHandler) {
+            logMethodCall(pjp, callerTraceElement, argsProviders, ret, targetProvider);
+        }
 
         return ret;
     }
