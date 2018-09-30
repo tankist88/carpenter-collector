@@ -16,6 +16,8 @@ public class MethodCallInfo {
     private int methodModifiers;
     private String methodKey;
     private ProviderResult targetProvider;
+    private int targetHashCode;
+    private int returnArgHashCode;
 
     public String getMethodName() {
         return methodName;
@@ -111,5 +113,21 @@ public class MethodCallInfo {
 
     public void setTargetProvider(ProviderResult targetProvider) {
         this.targetProvider = targetProvider;
+    }
+
+    public int getTargetHashCode() {
+        return targetHashCode;
+    }
+
+    public void setTargetHashCode(int targetHashCode) {
+        this.targetHashCode = targetHashCode;
+    }
+
+    public int getReturnArgHashCode() {
+        return returnArgHashCode;
+    }
+
+    public void setReturnArgHashCode(int returnArgHashCode) {
+        this.returnArgHashCode = returnArgHashCode;
     }
 }

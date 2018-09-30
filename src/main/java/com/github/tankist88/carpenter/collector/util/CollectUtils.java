@@ -12,10 +12,7 @@ import org.aspectj.lang.JoinPoint;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static com.github.tankist88.carpenter.core.property.AbstractGenerationProperties.COMMON_UTIL_POSTFIX;
 import static com.github.tankist88.carpenter.core.property.AbstractGenerationProperties.TAB;
@@ -32,11 +29,12 @@ public class CollectUtils {
 
     public static final SourceGenerator SG = getSgInstance();
 
-    public static GeneratedArgument createGeneratedArgument(Class clazz, ProviderResult provider) {
+    public static GeneratedArgument createGeneratedArgument(Class clazz, ProviderResult provider, int hashCode) {
         GeneratedArgument ga = new GeneratedArgument(clazz.getName(), provider);
         ga.setInterfacesHierarchy(getInterfacesHierarchyStr(clazz));
         ga.setAnonymousClass(getLastClassShort(clazz.getName()).matches("\\d+"));
         ga.setNearestInstantAbleClass(getNearestInstantAbleClass(clazz));
+        ga.setClassHashCode(hashCode);
         return ga;
     }
 
@@ -61,7 +59,7 @@ public class CollectUtils {
         for (int i = 0; i < argTypes.length; i++) {
             Class type = argTypes[i];
             ProviderResult providerResult = !Modifier.isPrivate(type.getModifiers()) ? argsProviderArr[i] : null;
-            GeneratedArgument genArg = createGeneratedArgument(type, providerResult);
+            GeneratedArgument genArg = createGeneratedArgument(type, providerResult, 0);
             try {
                 genArg.setGenericString(getMethodArgGenericTypeStr(classHierarchy, methodName, i, types));
             } catch (NoSuchMethodException e) {
@@ -149,7 +147,8 @@ public class CollectUtils {
             int ownArgsHashCode,
             TraceAnalyzeDto traceAnalyzeDto,
             String threadName,
-            ProviderResult targetProvider
+            ProviderResult targetProvider,
+            int targetHashCode
     ) {
         MethodCallInfo result = new MethodCallInfo();
 
@@ -174,6 +173,10 @@ public class CollectUtils {
         result.setReturnProvider(SG.createDataProviderMethod(ret));
         result.setTraceAnalyze(traceAnalyzeDto);
         result.setTargetProvider(targetProvider);
+        result.setTargetHashCode(targetHashCode);
+        if (ret != null) {
+            result.setReturnArgHashCode(ret.hashCode());
+        }
 
         return result;
     }

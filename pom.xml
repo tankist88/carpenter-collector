@@ -67,7 +67,7 @@
         <dependency>
             <groupId>com.github.tankist88</groupId>
             <artifactId>carpenter-core</artifactId>
-            <version>0.0.6-SNAPSHOT</version>
+            <version>0.0.7</version>
         </dependency>
 
         <dependency>

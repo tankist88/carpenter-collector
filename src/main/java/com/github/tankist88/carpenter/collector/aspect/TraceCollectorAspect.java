@@ -84,6 +84,7 @@ public class TraceCollectorAspect {
         ProviderResult targetProvider = null;
         boolean isDynamicProxy = false;
         boolean isInvocationHandler = false;
+        int targetHashCode = 0;
 
         if (!skip) {
             Class joinClass = getJoinClass(pjp);
@@ -96,6 +97,7 @@ public class TraceCollectorAspect {
                     if (pjp.getTarget() != null) {
                         // Target object can not be, for example for static calls
                         targetProvider = SG.createFillObjectMethod(pjp.getTarget());
+                        targetHashCode = pjp.getTarget().hashCode();
                     }
                     Object[] args = pjp.getArgs();
                     argsProviders = new ProviderResult[args.length];
@@ -112,7 +114,7 @@ public class TraceCollectorAspect {
         Object ret = pjp.proceed();
 
         if (!skip && !isDynamicProxy && !isInvocationHandler) {
-            logMethodCall(pjp, callerTraceElement, argsProviders, ret, targetProvider);
+            logMethodCall(pjp, callerTraceElement, argsProviders, ret, targetProvider, targetHashCode);
         }
 
         return ret;
@@ -143,7 +145,8 @@ public class TraceCollectorAspect {
             TraceElement callerTraceElement,
             ProviderResult[] argsProviders,
             Object ret,
-            ProviderResult targetProvider
+            ProviderResult targetProvider,
+            int targetHashCode
     ) {
         int ownArgsHashCode = ArgsHashCodeHolder.pop().getArgsHashCode();
         if (argsProviders != null) {
@@ -163,7 +166,8 @@ public class TraceCollectorAspect {
                     ownArgsHashCode,
                     traceAnalyzeDto,
                     threadName,
-                    targetProvider);
+                    targetProvider,
+                    targetHashCode);
             dumpMethodCallInfo(info);
         }
     }
@@ -196,9 +200,10 @@ public class TraceCollectorAspect {
                 targetMethod.setClassHasZeroArgConstructor(hasZeroArgConstructor(info.getClazz(), false));
                 targetMethod.setKey(info.getMethodKey());
                 targetMethod.setTraceAnalyzeData(info.getTraceAnalyze());
-                targetMethod.setTargetObj(createGeneratedArgument(info.getClazz(), info.getTargetProvider()));
-                targetMethod.setReturnArg(createGeneratedArgument(info.getRetType(), info.getReturnProvider()));
+                targetMethod.setTargetObj(createGeneratedArgument(info.getClazz(), info.getTargetProvider(), info.getTargetHashCode()));
+                targetMethod.setReturnArg(createGeneratedArgument(info.getRetType(), info.getReturnProvider(), info.getReturnArgHashCode()));
                 targetMethod.setCallTime(System.nanoTime());
+                targetMethod.setClassHashCode(info.getTargetHashCode());
                 saveObjectDump(
                         targetMethod,
                         info.getMethodKey(),
