@@ -19,11 +19,12 @@ public class DumpUtils {
             Serializable object,
             String methodKey,
             String className,
-            String upLevelKey
+            String upLevelKey,
+            int fieldsHashCode
     ) {
         DataOutputStream dos = null;
         try {
-            String key = methodKey + "_" + upLevelKey;
+            String key = methodKey + "_" + upLevelKey + "_" + fieldsHashCode;
             String keyHash = DigestUtils.md5Hex(key);
             String packageFileStruct =
                     loadProps().getObjectDumpDir() +

@@ -208,7 +208,8 @@ public class TraceCollectorAspect {
                         targetMethod,
                         info.getMethodKey(),
                         info.getClazz().getName(),
-                        info.getTraceAnalyze().getUpLevelElementKey());
+                        info.getTraceAnalyze().getUpLevelElementKey(),
+                        targetMethod.getServiceFields().hashCode());
             }
         };
         EXECUTOR_SERVICE.submit(callProcessor);
