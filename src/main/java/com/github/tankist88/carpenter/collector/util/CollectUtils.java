@@ -12,13 +12,19 @@ import org.aspectj.lang.JoinPoint;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static com.github.tankist88.carpenter.core.property.AbstractGenerationProperties.COMMON_UTIL_POSTFIX;
 import static com.github.tankist88.carpenter.core.property.AbstractGenerationProperties.TAB;
 import static com.github.tankist88.carpenter.core.property.GenerationPropertiesFactory.loadProps;
 import static com.github.tankist88.carpenter.core.util.TypeHelper.getMethodArgGenericTypeStr;
+import static com.github.tankist88.object2source.util.ExtensionUtil.getActualClassName;
 import static com.github.tankist88.object2source.util.GenerationUtil.*;
+import static java.lang.reflect.Modifier.isPrivate;
+import static java.lang.reflect.Modifier.isPublic;
 import static java.util.Arrays.asList;
 import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getParameterTypes;
 import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getReturnType;
@@ -39,9 +45,13 @@ public class CollectUtils {
     }
 
     public static String getNearestInstantAbleClass(Class clazz) {
-        return  isAnonymousClass(clazz) || !Modifier.isPublic(clazz.getModifiers())
-                ? getFirstPublicType(clazz).getName()
-                : clazz.getName();
+        Class nearestInstantAbleClass = isAnonymousClass(clazz) || !isPublic(clazz.getModifiers())
+                ? getFirstPublicType(clazz) : clazz;
+        if (clazz.isArray()) {
+            return getClearedClassName(getActualClassName(nearestInstantAbleClass));
+        } else {
+            return nearestInstantAbleClass.getName();
+        }
     }
 
     private static boolean isAnonymousClass(Class clazz) {
@@ -58,7 +68,7 @@ public class CollectUtils {
         List<GeneratedArgument> argList = new ArrayList<GeneratedArgument>();
         for (int i = 0; i < argTypes.length; i++) {
             Class type = argTypes[i];
-            ProviderResult providerResult = !Modifier.isPrivate(type.getModifiers()) ? argsProviderArr[i] : null;
+            ProviderResult providerResult = !isPrivate(type.getModifiers()) ? argsProviderArr[i] : null;
             GeneratedArgument genArg = createGeneratedArgument(type, providerResult, 0);
             try {
                 genArg.setGenericString(getMethodArgGenericTypeStr(classHierarchy, methodName, i, types));
@@ -123,7 +133,6 @@ public class CollectUtils {
     }
 
     private static String createMethodKey(JoinPoint joinPoint, String threadName) {
-//        String joinClass = joinPoint.getSourceLocation().getWithinType().getName();
         String joinClass = getJoinClass(joinPoint).getName();
         String joinMethod = joinPoint.getSignature().getName();
         return getMethodKey(joinClass, joinMethod, threadName);

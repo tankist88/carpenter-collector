@@ -130,7 +130,6 @@ public class TraceCollectorAspect {
 
     private void putArgsHashCode(JoinPoint joinPoint) {
         String joinMethod = joinPoint.getSignature().getName();
-//        String joinClass = joinPoint.getSourceLocation().getWithinType().getName();
         String joinClass = getJoinClass(joinPoint).getName();
         HashCodeBuilder hashCodeBuilder = new HashCodeBuilder();
         for (Object o : joinPoint.getArgs()) {
