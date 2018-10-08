@@ -85,6 +85,7 @@ public class TraceCollectorAspect {
         boolean isDynamicProxy = false;
         boolean isInvocationHandler = false;
         int targetHashCode = 0;
+        long startTime = 0;
 
         if (!skip) {
             Class joinClass = getJoinClass(pjp);
@@ -94,6 +95,7 @@ public class TraceCollectorAspect {
                 isDynamicProxy = isDynamicProxy(joinClass);
                 isInvocationHandler = isInvocationHandler(joinClass);
                 if (!isDynamicProxy && !isInvocationHandler) {
+                    startTime = System.nanoTime();
                     if (pjp.getTarget() != null) {
                         // Target object can not be, for example for static calls
                         targetProvider = SG.createFillObjectMethod(pjp.getTarget());
@@ -114,7 +116,7 @@ public class TraceCollectorAspect {
         Object ret = pjp.proceed();
 
         if (!skip && !isDynamicProxy && !isInvocationHandler) {
-            logMethodCall(pjp, callerTraceElement, argsProviders, ret, targetProvider, targetHashCode);
+            logMethodCall(pjp, callerTraceElement, argsProviders, ret, targetProvider, targetHashCode, startTime);
         }
 
         return ret;
@@ -128,7 +130,8 @@ public class TraceCollectorAspect {
 
     private void putArgsHashCode(JoinPoint joinPoint) {
         String joinMethod = joinPoint.getSignature().getName();
-        String joinClass = joinPoint.getSourceLocation().getWithinType().getName();
+//        String joinClass = joinPoint.getSourceLocation().getWithinType().getName();
+        String joinClass = getJoinClass(joinPoint).getName();
         HashCodeBuilder hashCodeBuilder = new HashCodeBuilder();
         for (Object o : joinPoint.getArgs()) {
             if (o != null) {
@@ -146,7 +149,8 @@ public class TraceCollectorAspect {
             ProviderResult[] argsProviders,
             Object ret,
             ProviderResult targetProvider,
-            int targetHashCode
+            int targetHashCode,
+            long startTime
     ) {
         int ownArgsHashCode = ArgsHashCodeHolder.pop().getArgsHashCode();
         if (argsProviders != null) {
@@ -167,7 +171,8 @@ public class TraceCollectorAspect {
                     traceAnalyzeDto,
                     threadName,
                     targetProvider,
-                    targetHashCode);
+                    targetHashCode,
+                    startTime);
             dumpMethodCallInfo(info);
         }
     }
@@ -202,7 +207,8 @@ public class TraceCollectorAspect {
                 targetMethod.setTraceAnalyzeData(info.getTraceAnalyze());
                 targetMethod.setTargetObj(createGeneratedArgument(info.getClazz(), info.getTargetProvider(), info.getTargetHashCode()));
                 targetMethod.setReturnArg(createGeneratedArgument(info.getRetType(), info.getReturnProvider(), info.getReturnArgHashCode()));
-                targetMethod.setCallTime(System.nanoTime());
+                targetMethod.setStartTime(info.getStartTime());
+                targetMethod.setEndTime(info.getEndTime());
                 targetMethod.setClassHashCode(info.getTargetHashCode());
                 saveObjectDump(
                         targetMethod,

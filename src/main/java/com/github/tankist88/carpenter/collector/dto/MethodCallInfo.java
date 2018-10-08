@@ -18,6 +18,8 @@ public class MethodCallInfo {
     private ProviderResult targetProvider;
     private int targetHashCode;
     private int returnArgHashCode;
+    private long startTime;
+    private long endTime;
 
     public String getMethodName() {
         return methodName;
@@ -129,5 +131,21 @@ public class MethodCallInfo {
 
     public void setReturnArgHashCode(int returnArgHashCode) {
         this.returnArgHashCode = returnArgHashCode;
+    }
+
+    public long getStartTime() {
+        return startTime;
+    }
+
+    public void setStartTime(long startTime) {
+        this.startTime = startTime;
+    }
+
+    public long getEndTime() {
+        return endTime;
+    }
+
+    public void setEndTime(long endTime) {
+        this.endTime = endTime;
     }
 }

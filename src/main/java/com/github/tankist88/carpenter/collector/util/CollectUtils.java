@@ -123,7 +123,8 @@ public class CollectUtils {
     }
 
     private static String createMethodKey(JoinPoint joinPoint, String threadName) {
-        String joinClass = joinPoint.getSourceLocation().getWithinType().getName();
+//        String joinClass = joinPoint.getSourceLocation().getWithinType().getName();
+        String joinClass = getJoinClass(joinPoint).getName();
         String joinMethod = joinPoint.getSignature().getName();
         return getMethodKey(joinClass, joinMethod, threadName);
     }
@@ -148,7 +149,8 @@ public class CollectUtils {
             TraceAnalyzeDto traceAnalyzeDto,
             String threadName,
             ProviderResult targetProvider,
-            int targetHashCode
+            int targetHashCode,
+            long startTime
     ) {
         MethodCallInfo result = new MethodCallInfo();
 
@@ -174,6 +176,8 @@ public class CollectUtils {
         result.setTraceAnalyze(traceAnalyzeDto);
         result.setTargetProvider(targetProvider);
         result.setTargetHashCode(targetHashCode);
+        result.setStartTime(startTime);
+        result.setEndTime(System.nanoTime());
         if (ret != null) {
             result.setReturnArgHashCode(ret.hashCode());
         }
