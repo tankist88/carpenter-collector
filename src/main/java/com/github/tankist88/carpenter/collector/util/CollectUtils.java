@@ -11,7 +11,6 @@ import org.aspectj.lang.JoinPoint;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -23,8 +22,7 @@ import static com.github.tankist88.carpenter.core.property.GenerationPropertiesF
 import static com.github.tankist88.carpenter.core.util.TypeHelper.getMethodArgGenericTypeStr;
 import static com.github.tankist88.object2source.util.ExtensionUtil.getActualClassName;
 import static com.github.tankist88.object2source.util.GenerationUtil.*;
-import static java.lang.reflect.Modifier.isPrivate;
-import static java.lang.reflect.Modifier.isPublic;
+import static java.lang.reflect.Modifier.*;
 import static java.util.Arrays.asList;
 import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getParameterTypes;
 import static org.aspectj.runtime.reflect.AspectMethodSignatureHelper.getReturnType;
@@ -197,6 +195,8 @@ public class CollectUtils {
     public static boolean isMaybeServiceClass(List<Class> classHierarchy) {
         List<String> fieldTypeNames = new ArrayList<String>();
         for (Field f : getAllFieldsOfClass(classHierarchy)) {
+            boolean deniedModifier = isStatic(f.getModifiers()) || isNative(f.getModifiers());
+            if (deniedModifier) continue;
             fieldTypeNames.add(f.getType().getName());
         }
         for (Method m : getAllMethodsOfClass(classHierarchy)) {
