@@ -99,7 +99,7 @@ public class TraceCollectorAspect {
                     if (pjp.getTarget() != null) {
                         // Target object can not be, for example for static calls
                         targetProvider = SG.createFillObjectMethod(pjp.getTarget());
-                        targetHashCode = pjp.getTarget().hashCode();
+                        targetHashCode = HashCodeBuilder.reflectionHashCode(pjp.getTarget());
                     }
                     Object[] args = pjp.getArgs();
                     argsProviders = new ProviderResult[args.length];

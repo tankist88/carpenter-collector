@@ -7,6 +7,7 @@ import com.github.tankist88.carpenter.core.property.GenerationProperties;
 import com.github.tankist88.object2source.SourceGenerator;
 import com.github.tankist88.object2source.dto.ProviderResult;
 import com.github.tankist88.object2source.extension.Extension;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.aspectj.lang.JoinPoint;
 
 import java.lang.reflect.Field;
@@ -186,7 +187,7 @@ public class CollectUtils {
         result.setStartTime(startTime);
         result.setEndTime(System.nanoTime());
         if (ret != null) {
-            result.setReturnArgHashCode(ret.hashCode());
+            result.setReturnArgHashCode(HashCodeBuilder.reflectionHashCode(ret));
         }
 
         return result;
