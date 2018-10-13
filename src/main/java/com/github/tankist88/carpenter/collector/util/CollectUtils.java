@@ -86,7 +86,8 @@ public class CollectUtils {
         SourceGenerator sg = new SourceGenerator(TAB, allowedPackages, utilClass);
         sg.setExceptionWhenMaxODepth(false);
         sg.setMaxObjectDepth(props.getMaxObjectDepth());
-        for(String classname : props.getExternalExtensionClassNames()) {
+        sg.setByteArrayMaxLength(props.getMaxByteArrayLength());
+        for (String classname : props.getExternalExtensionClassNames()) {
             try {
                 Extension ext = (Extension) Class.forName(classname).newInstance();
                 sg.registerExtension(ext);
@@ -98,7 +99,7 @@ public class CollectUtils {
     }
 
     public static boolean excludedThreadName(String threadName) {
-        if(threadName == null) return false;
+        if (threadName == null) return false;
         for (String p : loadProps().getExcludedThreadNames()) {
             if(threadName.contains(p)) return true;
         }
@@ -106,7 +107,7 @@ public class CollectUtils {
     }
 
     public static boolean allowedPackageForGen(String className) {
-        if(className == null) return false;
+        if (className == null) return false;
         for (String p : loadProps().getAllowedPackagesForTests()) {
             if(className.startsWith(p)) return true;
         }
@@ -115,14 +116,14 @@ public class CollectUtils {
 
     public static boolean deniedMethod(String methodName) {
         for (String m : DENIED_METHODS) {
-            if(methodName.startsWith(m)) return true;
+            if (methodName.startsWith(m)) return true;
         }
         return false;
     }
 
     public static boolean deniedMethodSymbol(String methodName) {
         for (String m : DENIED_METHOD_SYMBOLS) {
-            if(methodName.contains(m)) return true;
+            if (methodName.contains(m)) return true;
         }
         return false;
     }
@@ -142,7 +143,7 @@ public class CollectUtils {
     }
 
     static String clearAspectMethod(String method) {
-        if(method.contains("_aroundBody")) {
+        if (method.contains("_aroundBody")) {
             return method.substring(0, method.indexOf("_aroundBody"));
         } else {
             return method;
